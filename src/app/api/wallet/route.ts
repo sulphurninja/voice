@@ -6,11 +6,16 @@ import mongoose from 'mongoose';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || ''
-});
+// Remove the global Razorpay initialization
+// const razorpay = new Razorpay({...}) - DELETE THIS
+
+// Helper function to initialize Razorpay
+function initializeRazorpay() {
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || '',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || ''
+  });
+}
 
 // Create an order for recharging wallet
 export async function POST(request: NextRequest) {
@@ -49,6 +54,9 @@ export async function POST(request: NextRequest) {
 
     // Convert to paise for Razorpay
     const amountInPaise = Math.round(amount * 100);
+
+    // Initialize Razorpay inside the function
+    const razorpay = initializeRazorpay();
 
     // Create Razorpay order
     const order = await razorpay.orders.create({

@@ -5,11 +5,8 @@ import User from '@/models/userModel';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
-// Initialize Razorpay
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || ''
-});
+// Remove the global Razorpay initialization
+// const razorpay = new Razorpay({...}) - DELETE THIS
 
 // Plan configurations
 const plans = {
@@ -38,6 +35,14 @@ const plans = {
     extraMinuteRate: 450 // ₹4.50 in paise
   }
 };
+
+// Helper function to initialize Razorpay
+function initializeRazorpay() {
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || '',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || ''
+  });
+}
 
 // Create an order for plan upgrade
 export async function POST(request: NextRequest) {
@@ -86,6 +91,9 @@ export async function POST(request: NextRequest) {
 
     const plan = plans[planId as keyof typeof plans];
 
+    // Initialize Razorpay inside the function
+    const razorpay = initializeRazorpay();
+
     // Generate a shorter receipt ID - max 40 chars
     const timestamp = Date.now().toString().slice(-8);  // Use last 8 digits only
     const receiptId = `plan-${userData.userId.slice(-8)}-${planId}-${timestamp}`;
@@ -111,6 +119,7 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 // Verify payment and update plan
 export async function PUT(request: NextRequest) {
   try {

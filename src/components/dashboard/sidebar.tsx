@@ -53,12 +53,13 @@ export function DashboardSidebar() {
   const { user, logout } = useAuth();
 
   // Restaurant + AI data fetching
-  const { data: ordersData } = useSWR<{ orders: any[], stats: any }>("/api/orders?status=active", fetcher);
-  const activeOrders = ordersData?.orders?.length ?? 0;
-  const pendingOrders = ordersData?.stats?.pending ?? 0;
+const { data: ordersData } = useSWR<{ orders: any[], stats: any }>("/api/orders?status=active", fetcher);
+const activeOrders = ordersData?.orders?.length ?? 0;
+const pendingOrders = ordersData?.orders?.filter(o => o.status === 'pending')?.length ?? 0;
 
-  const { data: reservationsData } = useSWR<{ reservations: any[] }>("/api/reservations?status=today", fetcher);
-  const todayReservations = reservationsData?.reservations?.length ?? 0;
+const { data: reservationsData } = useSWR<{ reservations: any[] }>("/api/reservations?status=today", fetcher);
+const todayReservations = reservationsData?.reservations?.length ?? 0;
+
 
   const { data: menuData } = useSWR<{ items: any[] }>("/api/menu", fetcher);
   const menuItems = menuData?.items?.length ?? 0;
@@ -83,7 +84,7 @@ export function DashboardSidebar() {
     {
       icon: <ShoppingBag className="h-5 w-5" />,
       label: "Orders",
-      href: "/dashboard/campaigns",
+      href: "/dashboard/orders",
       badge: activeOrders > 0 ? activeOrders : undefined,
       description: "Active & pending orders",
       urgent: pendingOrders > 5,

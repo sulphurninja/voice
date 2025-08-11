@@ -5,6 +5,7 @@ import connectDB from "@/lib/db";
 import Call from "@/models/callModel";
 import { OpenAI } from "openai";
 import { updateUserUsage } from "@/lib/plan-limits";
+import Agent from "@/models/agentModel";
 
 const SECRET = process.env.ELEVENLABS_WEBHOOK_SECRET!;
 const openai = new OpenAI({
@@ -44,55 +45,49 @@ async function analyzeCallOutcome(summary: string): Promise<string> {
       messages: [
         {
           role: "system",
-          content: `You are an expert sales analyst. Analyze the following call summary and determine the outcome.
-          Select the most appropriate outcome from these options:
-          - highly_interested: Prospect showed strong interest and is eager to proceed
-          - interested: Prospect showed general interest in the offering
-          - qualified_lead: Prospect meets qualification criteria and has potential
-          - appointment_scheduled: A meeting or follow-up appointment was set
-          - opportunity_created: Prospect is ready for a proposal or next steps in sales process
-          - needs_follow_up: Requires additional contact to progress
-          - considering: Prospect is thinking about the offer but not committed
+          content: `You are analyzing a restaurant AI voice assistant call. Based on the conversation summary, determine the primary outcome.
+          
+          Restaurant-specific outcomes:
+          - order_placed: Customer placed a food order
+          - reservation_made: Customer made a table reservation
+          - inquiry_answered: Customer asked about menu, hours, location, etc.
+          - complaint_logged: Customer complained about service/food
+          - appointment_scheduled: Customer scheduled a callback or meeting
+          - highly_interested: Customer showed strong interest in services
+          - interested: Customer showed general interest
+          - needs_follow_up: Requires additional contact
+          - considering: Customer is thinking about it
           - neutral: Conversation was neither positive nor negative
-          - more_information_requested: Prospect needs additional details
-          - call_back_later: Prospect asked to be contacted at a later time
-          - not_interested: Prospect explicitly declined the offer
-          - do_not_call: Prospect requested no further contact
-          - unqualified: Prospect does not meet basic criteria for the offering
-          - wrong_number: Reached an incorrect or unintended recipient
-          - complaint: Prospect expressed dissatisfaction or filed a complaint
-
-          Respond with only one of these outcome types based on your analysis.`
+          - not_interested: Customer declined services
+          - wrong_number: Wrong contact reached
+          - no_answer: Call went unanswered
+          
+          Respond with only the outcome type.`
         },
         {
           role: "user",
           content: `Call summary: ${summary}`
         }
       ],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: 50
     });
 
     const outcome = response.choices[0].message.content?.trim().toLowerCase() || "neutral";
-
-    // Normalize the outcome to match our expected format
+    
+    // Normalize outcomes
+    if (outcome.includes("order")) return "order_placed";
+    if (outcome.includes("reservation")) return "reservation_made";
+    if (outcome.includes("inquiry") || outcome.includes("question")) return "inquiry_answered";
+    if (outcome.includes("complaint")) return "complaint_logged";
+    if (outcome.includes("appointment") || outcome.includes("callback")) return "appointment_scheduled";
     if (outcome.includes("highly") && outcome.includes("interest")) return "highly_interested";
     if (outcome.includes("interest") && !outcome.includes("not")) return "interested";
-    if (outcome.includes("qualified") && !outcome.includes("un")) return "qualified_lead";
-    if (outcome.includes("appointment") || outcome.includes("schedul")) return "appointment_scheduled";
-    if (outcome.includes("opportunity")) return "opportunity_created";
-    if (outcome.includes("follow") && outcome.includes("up")) return "needs_follow_up";
+    if (outcome.includes("follow")) return "needs_follow_up";
     if (outcome.includes("consider")) return "considering";
-    if (outcome.includes("neutral")) return "neutral";
-    if (outcome.includes("more") && outcome.includes("information")) return "more_information_requested";
-    if (outcome.includes("call") && outcome.includes("back")) return "call_back_later";
     if (outcome.includes("not") && outcome.includes("interest")) return "not_interested";
-    if (outcome.includes("do") && outcome.includes("not") && outcome.includes("call")) return "do_not_call";
-    if (outcome.includes("unqualified")) return "unqualified";
     if (outcome.includes("wrong")) return "wrong_number";
-    if (outcome.includes("complaint")) return "complaint";
-
-    // If we can't match to a standard outcome, return the raw outcome
+    
     return outcome;
   } catch (error) {
     console.error("Error analyzing call outcome:", error);
@@ -101,135 +96,151 @@ async function analyzeCallOutcome(summary: string): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  /** 1 ▸ read raw body & verify signature */
-  const raw = Buffer.from(await req.arrayBuffer());
-
-  if (!isValidSignature(raw, req.headers.get("elevenlabs-signature"))) {
-    return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
-  }
-
-  /** 2 ▸ parse once */
-  const payload = JSON.parse(raw.toString());
-
-  /**
-   * ElevenLabs sends two slightly different shapes:
-   *   A) { type, data:{ …analysis:{transcript_summary}… } }
-   *   B) { status:'done', analysis:{transcript_summary}, … }   (no wrapper)
-   *
-   * event = the object that actually holds call details.
-   */
-  const event = payload.data ?? payload;
-  const eventType = payload.type ?? event.type ?? "post_call_transcription";
-
-  if (eventType !== "post_call_transcription") {
-    // ignore other webhook types (e.g., TTS status)
-    return NextResponse.json({ ok: true });
-  }
-
-  /** 3 ▸ pull the fields we care about from event */
-  const {
-    metadata: {
-      call_sid,
-      call_duration_secs = 0,
-      cost = 0,
-    } = {},
-    transcript = [],
-    analysis = {},
-    transcript_summary: legacySummary,
-    conversation_id,
-    status,
-    agent_id, // This identifies which agent handled the call
-  } = event;
-
-  // summary can live in analysis or directly on the root (legacy)
-  const transcript_summary =
-    analysis.transcript_summary ?? legacySummary ?? "";
-
-  console.log("Webhook summary:", transcript_summary);
-
-  /** 4 ▸ analyze the call outcome based on the summary */
-  const outcome = await analyzeCallOutcome(transcript_summary);
-  console.log("Call outcome:", outcome);
-
-  /** 5 ▸ update DB - handle both inbound and outbound calls */
-  await connectDB();
-  
-  // Try to find existing call by SID first (for outbound calls)
-  let call = await Call.findOne({ elevenLabsCallSid: call_sid });
-  
-  if (!call) {
-    // If not found by call_sid, this might be an inbound call
-    // Try to find by conversation_id or create a new record
-    call = await Call.findOne({ conversationId: conversation_id });
+  try {
+    const raw = Buffer.from(await req.arrayBuffer());
     
-    if (!call) {
-      // Create new call record for inbound calls
-      call = new Call({
-        elevenLabsCallSid: call_sid,
+    if (!isValidSignature(raw, req.headers.get("elevenlabs-signature"))) {
+      console.log("Invalid webhook signature");
+      return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
+    }
+
+    const payload = JSON.parse(raw.toString());
+    console.log("Full webhook payload:", JSON.stringify(payload, null, 2));
+
+    // Handle different webhook event types
+    const eventType = payload.type || "unknown";
+    console.log("Webhook event type:", eventType);
+
+    if (eventType === "post_call_transcription" || eventType === "conversation_update") {
+      const event = payload.data || payload;
+      
+      const {
+        metadata = {},
+        transcript = [],
+        analysis = {},
+        transcript_summary,
+        conversation_id,
+        status,
+        agent_id,
+        call_sid
+      } = event;
+
+      const finalCallSid = call_sid || metadata.call_sid;
+      const callDuration = metadata.call_duration_secs || event.call_duration_secs || 0;
+      const callCost = metadata.cost || event.cost || 0;
+      
+      console.log("Processing call:", {
+        callSid: finalCallSid,
         conversationId: conversation_id,
         agentId: agent_id,
-        type: 'inbound', // Mark as inbound call
-        status: 'initiated',
-        // You might want to extract phone numbers from metadata or transcript
-        // depending on how your inbound calls are structured
+        duration: callDuration,
+        status,
+        hasTranscript: transcript.length > 0,
+        hasSummary: !!transcript_summary
       });
-      console.log("Created new inbound call record:", conversation_id);
-    }
-  } else {
-    // This is an outbound call - mark it as such if not already set
-    if (!call.type) {
-      call.type = 'outbound';
-    }
-  }
 
-  // Update call details (same for both inbound and outbound)
-  call.status = status === "done" ? "completed" : "failed";
-  call.duration = call_duration_secs;
-  call.cost = cost / 100; // paise/cents → rupees/dollars
-  call.endTime = new Date();
-  call.transcription = transcript
-    .map((seg: { role: string; message: string }) => `${seg.role}: ${seg.message}`)
-    .join("\n");
-  call.summary = transcript_summary;
-  call.conversationId = conversation_id;
-  call.hasAudio = status === "done";
-  call.outcome = outcome;
-  call.agentId = agent_id; // Ensure agent_id is stored
-
-  await call.save();
-
-  /** 6 ▸ Update user usage based on call duration */
-  if (status === "done" && call_duration_secs > 0) {
-    try {
-      // Convert seconds to minutes, rounding up to nearest minute
-      const minutesUsed = Math.ceil(call_duration_secs / 60);
-
-      // Get the user ID from the call
-      const userId = call.userId?.toString();
-
-      if (userId) {
-        // Update the user's usage stats
-        const usageResult = await updateUserUsage(userId, minutesUsed);
-
-        if (!usageResult.success) {
-          console.error("Failed to update user usage:", usageResult.message);
-        } else {
-          console.log("Updated user usage:", {
-            userId,
-            minutesUsed,
-            callType: call.type,
-            minutesFromPlan: usageResult.minutesFromPlan,
-            minutesFromWallet: usageResult.minutesFromWallet,
-            walletCost: usageResult.walletCost / 100,
-          });
-        }
-      } else {
-        console.warn("No userId found for call:", call_sid);
+      if (!finalCallSid && !conversation_id) {
+        console.log("No call_sid or conversation_id found, skipping");
+        return NextResponse.json({ ok: true });
       }
-    } catch (error) {
-      console.error("Error updating user usage for call:", call_sid, error);
-    }
-  }
 
-  return NextResponse.json({ ok: true });
+      await connectDB();
+
+      // Find the call record
+      let call = null;
+      
+      if (finalCallSid) {
+        call = await Call.findOne({ elevenLabsCallSid: finalCallSid });
+      }
+      
+      if (!call && conversation_id) {
+        call = await Call.findOne({ conversationId: conversation_id });
+      }
+
+      if (!call) {
+        console.log("Call not found, creating new record");
+        // Try to find the agent to get userId
+        let userId = null;
+        if (agent_id) {
+          const agent = await Agent.findOne({ agentId: agent_id });
+          if (agent) {
+            userId = agent.userId;
+          }
+        }
+
+        if (!userId) {
+          console.log("Cannot create call record without userId");
+          return NextResponse.json({ ok: true });
+        }
+
+        call = new Call({
+          userId,
+          agentId: agent_id,
+          elevenLabsCallSid: finalCallSid,
+          conversationId: conversation_id,
+          direction: "inbound", // Assume inbound if not found
+          status: "initiated",
+          phoneNumber: metadata.to_number || "unknown",
+          contactName: "Unknown"
+        });
+      }
+
+      // Process transcript
+      let fullTranscript = "";
+      if (transcript && transcript.length > 0) {
+        fullTranscript = transcript
+          .map((seg: any) => `${seg.role || seg.speaker}: ${seg.message || seg.text}`)
+          .join("\n");
+        console.log("Processed transcript length:", fullTranscript.length);
+      }
+
+      // Get summary
+      const summary = analysis.transcript_summary || transcript_summary || "";
+      console.log("Summary found:", !!summary, "Length:", summary.length);
+
+      // Analyze outcome
+      const outcome = summary ? await analyzeCallOutcome(summary) : "neutral";
+      console.log("Determined outcome:", outcome);
+
+      // Update call record
+      if (status === "done" || status === "completed") {
+        call.status = "completed";
+      } else if (status === "failed") {
+        call.status = "failed";
+      }
+
+      call.duration = callDuration;
+      call.cost = callCost / 100; // Convert cents to dollars
+      call.endTime = new Date();
+      call.transcription = fullTranscript;
+      call.summary = summary;
+      call.conversationId = conversation_id;
+      call.hasAudio = status === "done";
+      call.outcome = outcome;
+
+      await call.save();
+      console.log("Call updated successfully:", call._id);
+
+      // Update usage if call completed
+      if (status === "done" && callDuration > 0) {
+        const minutesUsed = Math.ceil(callDuration / 60);
+        if (call.userId) {
+          await updateUserUsage(call.userId.toString(), minutesUsed);
+          console.log("Usage updated:", minutesUsed, "minutes");
+        }
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // Handle other event types
+    console.log("Unhandled event type:", eventType);
+    return NextResponse.json({ ok: true });
+
+  } catch (error:any) {
+    console.error("Webhook error:", error);
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  }
 }
+
+

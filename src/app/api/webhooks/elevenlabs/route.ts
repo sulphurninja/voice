@@ -222,18 +222,32 @@ export async function POST(req: NextRequest) {
       }
 
       // Better direction detection
-      const callDirection = metadata?.phone_call?.direction ||
-        (metadata?.phone_call?.external_number ? "inbound" : "outbound");
+      const callDirection = metadata?.phone_call?.direction || "inbound";
 
-      // Better phone number detection
-      const phoneNumber = metadata?.phone_call?.external_number || // For inbound calls
-        metadata?.phone_call?.agent_number || // For outbound calls
+      // Better phone number detection using the correct webhook structure
+      const phoneNumber =
+        // For inbound calls: the caller's number (external_number)
+        (callDirection === "inbound" ? metadata?.phone_call?.external_number : null) ||
+        // For outbound calls: the called number (also external_number in outbound context)
+        (callDirection === "outbound" ? metadata?.phone_call?.external_number : null) ||
+        // Try dynamic variables as fallback
+        event?.conversation_initiation_client_data?.dynamic_variables?.system__caller_id ||
+        event?.conversation_initiation_client_data?.dynamic_variables?.system__called_number ||
+        // Original fallbacks
         metadata?.from_number ||
         metadata?.to_number ||
         metadata?.caller_number ||
         metadata?.phone_number ||
-        metadata?.sip_from ||
         "unknown";
+
+      console.log("Phone number extraction debug:", {
+        direction: callDirection,
+        external_number: metadata?.phone_call?.external_number,
+        agent_number: metadata?.phone_call?.agent_number,
+        caller_id: event?.conversation_initiation_client_data?.dynamic_variables?.system__caller_id,
+        called_number: event?.conversation_initiation_client_data?.dynamic_variables?.system__called_number,
+        final_phone: phoneNumber
+      });
 
       call = new Call({
         userId: userId, // The owner of the agent (required)

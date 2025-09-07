@@ -107,6 +107,7 @@ Respond with only the outcome name.`,
 
 export async function POST(req: NextRequest) {
   try {
+
     // Read raw body first (needed for signature)
     const raw = Buffer.from(await req.arrayBuffer());
 
@@ -145,6 +146,8 @@ export async function POST(req: NextRequest) {
       cost,
       call_sid, // sometimes present
     } = event;
+    console.log("Received webhook with status:", status);
+    console.log("Full event data:", JSON.stringify(event, null, 2));
 
     // Normalize fields
     const finalConversationId: string | undefined = conversation_id || metadata.conversation_id;
@@ -207,9 +210,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Update status
-    if (status === "done" || status === "completed") call.status = "completed";
-    else if (status === "failed") call.status = "failed";
+    if (status === "done") {
+      call.status = "completed";
+    } else if (status === "failed") {
+      call.status = "failed";
+    }
 
     // Update other fields
     call.conversationId = finalConversationId || call.conversationId;

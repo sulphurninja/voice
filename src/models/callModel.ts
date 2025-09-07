@@ -1,8 +1,9 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ICall extends Document {
-  userId: mongoose.Types.ObjectId;
-  agentId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
+  agentId?: mongoose.Types.ObjectId;
+  elevenLabsAgentId?: string; // NEW field for ElevenLabs agent ID
   contactId?: mongoose.Types.ObjectId;
   campaignId?: mongoose.Types.ObjectId;  // ← NEW field to link calls to campaigns
   phoneNumber: string;
@@ -37,10 +38,10 @@ export interface ICall extends Document {
 
 const CallSchema = new Schema<ICall>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    agentId: { type: Schema.Types.ObjectId, ref: "Agent", required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
+    agentId: { type: Schema.Types.ObjectId, ref: "Agent" },
     contactId: { type: Schema.Types.ObjectId, ref: "Contact" },
-
+    elevenLabsAgentId: { type: String }, // NEW field for ElevenLabs agent ID
     phoneNumber: { type: String, required: true },
     direction: {
       type: String,

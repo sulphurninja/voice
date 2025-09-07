@@ -195,35 +195,68 @@ export async function POST(req: NextRequest) {
       let userId = null;
       let agentObjectId = null;
 
+      // Use the ElevenLabs agent_id to find the agent in our database
       if (agent_id) {
-        const agent = await Agent.findOne({ agentId: agent_id });
+        const agent = await Agent.findOne({ agentId: agent_id }); // agentId field matches ElevenLabs agent_id
         if (agent) {
-          userId = agent.userId;
-          agentObjectId = agent._id; // Use the MongoDB ObjectId of the agent
+          userId = agent.userId; // Get the user who owns this agent
+          agentObjectId = agent._id; // Get the MongoDB ObjectId reference
+          console.log("Found agent in database:", {
+            dbAgentId: agent._id,
+            elevenLabsAgentId: agent.agentId,
+            userId: agent.userId
+          });
+        } else {
+          console.error("Agent not found in database with ElevenLabs ID:", agent_id);
         }
       }
 
+      // If we still don't have a userId, we can't create the call record
+      if (!userId) {
+        console.error("No userId found - agent not found in our database for ElevenLabs agent_id:", agent_id);
+        return NextResponse.json({
+          ok: false,
+          error: "Agent not found in system",
+          agent_id
+        });
+      }
+
+      // Better direction detection
+      const callDirection = metadata?.phone_call?.direction ||
+        (metadata?.phone_call?.external_number ? "inbound" : "outbound");
+
+      // Better phone number detection
+      const phoneNumber = metadata?.phone_call?.external_number || // For inbound calls
+        metadata?.phone_call?.agent_number || // For outbound calls
+        metadata?.from_number ||
+        metadata?.to_number ||
+        metadata?.caller_number ||
+        metadata?.phone_number ||
+        metadata?.sip_from ||
+        "unknown";
+
       call = new Call({
-        userId: userId || null,
-        agentId: agentObjectId || null, // Store the MongoDB ObjectId reference
-        elevenLabsAgentId: agent_id || null, // Store the ElevenLabs agent ID string
+        userId: userId, // The owner of the agent (required)
+        agentId: agentObjectId, // The MongoDB ObjectId reference to agent (optional)
+        elevenLabsAgentId: agent_id, // Store the ElevenLabs agent ID for reference
         conversationId: finalConversationId,
         elevenLabsCallSid: twilioCallSid,
-        direction: metadata?.to_number ? "outbound" : "inbound",
+        direction: callDirection,
         status: "initiated",
-        phoneNumber: metadata?.from_number ||
-          metadata?.to_number ||
-          metadata?.caller_number ||
-          metadata?.phone_number ||
-          metadata?.sip_from ||
-          "unknown",
+        phoneNumber: phoneNumber,
         startTime: new Date(),
       });
     }
+
     console.log("Metadata for direction detection:", JSON.stringify(metadata, null, 2));
-    console.log("Agent lookup - agent_id:", agent_id);
+    console.log("Agent lookup - ElevenLabs agent_id:", agent_id);
     console.log("Final conversation ID:", finalConversationId);
-    console.log("Call direction detected:", metadata?.from_number ? "inbound" : "outbound");
+    console.log("Call direction detected:", call.direction);
+    console.log("Phone number detected:", call.phoneNumber);
+    console.log("User ID (agent owner):", call.userId);
+    console.log("Agent ObjectId:", call.agentId);
+
+    // ... rest of existing code remains the same ...
 
     if (status === "done") {
       call.status = "completed";

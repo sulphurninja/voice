@@ -38,7 +38,7 @@ export interface ICall extends Document {
 
 const CallSchema = new Schema<ICall>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User" },
+    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     agentId: { type: Schema.Types.ObjectId, ref: "Agent" },
     contactId: { type: Schema.Types.ObjectId, ref: "Contact" },
     elevenLabsAgentId: { type: String }, // NEW field for ElevenLabs agent ID

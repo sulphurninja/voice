@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Minimal synchronous processing (we still do DB work here; keep it quick)
-    const event = body.data || body; // some SDKs wrap under data
+    const event = body.data  // some SDKs wrap under data
     const {
       conversation_id,
       agent_id,

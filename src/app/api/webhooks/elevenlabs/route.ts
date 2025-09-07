@@ -205,10 +205,20 @@ export async function POST(req: NextRequest) {
         elevenLabsCallSid: twilioCallSid,
         direction: metadata?.to_number ? "outbound" : "inbound",
         status: "initiated",
-        phoneNumber: metadata?.to_number || metadata?.from_number || "unknown",
+        // Better phone number detection
+        phoneNumber: metadata?.from_number ||
+          metadata?.to_number ||
+          metadata?.caller_number ||
+          metadata?.phone_number ||
+          metadata?.sip_from ||
+          "unknown",
         startTime: new Date(),
       });
     }
+    console.log("Metadata for direction detection:", JSON.stringify(metadata, null, 2));
+    console.log("Agent lookup - agent_id:", agent_id);
+    console.log("Final conversation ID:", finalConversationId);
+    console.log("Call direction detected:", metadata?.from_number ? "inbound" : "outbound");
 
     if (status === "done") {
       call.status = "completed";

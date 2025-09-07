@@ -3,244 +3,248 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import connectDB from "@/lib/db";
 import Call from "@/models/callModel";
-import { OpenAI } from "openai";
-import { updateUserUsage } from "@/lib/plan-limits";
 import Agent from "@/models/agentModel";
+import { updateUserUsage } from "@/lib/plan-limits";
+import { OpenAI } from "openai";
+
+export const runtime = "nodejs"; // ensure Node runtime
 
 const SECRET = process.env.ELEVENLABS_WEBHOOK_SECRET!;
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-/** Verify ElevenLabs signature header */
+// ---------- Signature utils ----------
+function parseSignature(header: string) {
+  const map = new Map<string, string>();
+  for (const part of header.split(",")) {
+    const [k, v] = part.split("=").map((s) => s.trim());
+    if (k && v) map.set(k, v);
+  }
+  // header may be like: "1, t=TIMESTAMP, v0=HEX"
+  const t = map.get("t") ?? "";
+  let v0 = map.get("v0") ?? "";
+  if (v0.startsWith("v0=")) v0 = v0.slice(3);
+  return { t, v0 };
+}
+
 function isValidSignature(raw: Buffer, header: string | null) {
   if (!header) return false;
+  const { t, v0 } = parseSignature(header);
+  if (!t || !v0) return false;
 
-  const parts = header.split(",").reduce<Record<string, string>>((acc, p) => {
-    const [k, v] = p.split("=");
-    acc[k] = v;
-    return acc;
-  }, {});
-
-  const timestamp = parts["t"];
-  const received  = parts["v0"];
-  if (!timestamp || !received) return false;
+  // Optional timestamp tolerance (30 minutes)
+  const now = Math.floor(Date.now() / 1000);
+  const skew = Math.abs(now - Number(t));
+  if (Number.isFinite(Number(t)) && skew > 30 * 60) {
+    console.warn("Signature timestamp outside tolerance");
+    return false;
+  }
 
   const expected = crypto
     .createHmac("sha256", SECRET)
-    .update(`${timestamp}.${raw}`)
+    .update(`${t}.${raw.toString("utf8")}`)
     .digest("hex");
 
-  return crypto.timingSafeEqual(Buffer.from(received), Buffer.from(expected));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(v0), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
+// ---------- Outcome analysis (kept, but fully guarded) ----------
 async function analyzeCallOutcome(summary: string): Promise<string> {
-  if (!summary || summary.trim() === "") {
-    return "neutral";
-  }
-
   try {
-    const response = await openai.chat.completions.create({
+    const s = (summary || "").trim();
+    if (!s) return "neutral";
+
+    const r = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
+      temperature: 0.1,
+      max_tokens: 50,
       messages: [
         {
           role: "system",
           content: `You are analyzing a restaurant AI voice assistant call. Based on the conversation summary, determine the primary outcome.
-          
-          Restaurant-specific outcomes:
-          - order_placed: Customer placed a food order
-          - reservation_made: Customer made a table reservation
-          - inquiry_answered: Customer asked about menu, hours, location, etc.
-          - complaint_logged: Customer complained about service/food
-          - appointment_scheduled: Customer scheduled a callback or meeting
-          - highly_interested: Customer showed strong interest in services
-          - interested: Customer showed general interest
-          - needs_follow_up: Requires additional contact
-          - considering: Customer is thinking about it
-          - neutral: Conversation was neither positive nor negative
-          - not_interested: Customer declined services
-          - wrong_number: Wrong contact reached
-          - no_answer: Call went unanswered
-          
-          Respond with only the outcome type.`
+
+Possible outcomes:
+- order_placed
+- reservation_made
+- inquiry_answered
+- complaint_logged
+- appointment_scheduled
+- highly_interested
+- interested
+- needs_follow_up
+- considering
+- neutral
+- not_interested
+- wrong_number
+- no_answer
+
+Respond with only the outcome name.`,
         },
-        {
-          role: "user",
-          content: `Call summary: ${summary}`
-        }
+        { role: "user", content: `Call summary: ${s}` },
       ],
-      temperature: 0.1,
-      max_tokens: 50
     });
 
-    const outcome = response.choices[0].message.content?.trim().toLowerCase() || "neutral";
-    
-    // Normalize outcomes
-    if (outcome.includes("order")) return "order_placed";
-    if (outcome.includes("reservation")) return "reservation_made";
-    if (outcome.includes("inquiry") || outcome.includes("question")) return "inquiry_answered";
-    if (outcome.includes("complaint")) return "complaint_logged";
-    if (outcome.includes("appointment") || outcome.includes("callback")) return "appointment_scheduled";
-    if (outcome.includes("highly") && outcome.includes("interest")) return "highly_interested";
-    if (outcome.includes("interest") && !outcome.includes("not")) return "interested";
-    if (outcome.includes("follow")) return "needs_follow_up";
-    if (outcome.includes("consider")) return "considering";
-    if (outcome.includes("not") && outcome.includes("interest")) return "not_interested";
-    if (outcome.includes("wrong")) return "wrong_number";
-    
-    return outcome;
-  } catch (error) {
-    console.error("Error analyzing call outcome:", error);
+    const raw = r.choices[0]?.message?.content?.trim().toLowerCase() || "neutral";
+    if (raw.includes("order")) return "order_placed";
+    if (raw.includes("reservation")) return "reservation_made";
+    if (raw.includes("inquiry") || raw.includes("question")) return "inquiry_answered";
+    if (raw.includes("complaint")) return "complaint_logged";
+    if (raw.includes("appointment") || raw.includes("callback")) return "appointment_scheduled";
+    if (raw.includes("highly") && raw.includes("interest")) return "highly_interested";
+    if (raw.includes("not") && raw.includes("interest")) return "not_interested";
+    if (raw.includes("follow")) return "needs_follow_up";
+    if (raw.includes("consider")) return "considering";
+    if (raw.includes("wrong")) return "wrong_number";
+    return raw || "neutral";
+  } catch (err) {
+    console.error("Outcome analysis failed:", err);
     return "neutral";
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    // Read raw body first (needed for signature)
     const raw = Buffer.from(await req.arrayBuffer());
-    
-    if (!isValidSignature(raw, req.headers.get("elevenlabs-signature"))) {
-      console.log("Invalid webhook signature");
+
+    // Signature header (case-insensitive)
+    const sigHeader =
+      req.headers.get("elevenlabs-signature") ||
+      req.headers.get("ElevenLabs-Signature") ||
+      req.headers.get("ELEVENLABS-SIGNATURE");
+
+    if (!isValidSignature(raw, sigHeader)) {
+      console.log("Invalid ElevenLabs webhook signature");
       return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
     }
 
-    const payload = JSON.parse(raw.toString());
-    console.log("Full webhook payload:", JSON.stringify(payload, null, 2));
+    // Parse payload
+    const body = JSON.parse(raw.toString("utf8"));
+    const type = body.type ?? body?.data?.type ?? "unknown";
 
-    // Handle different webhook event types
-    const eventType = payload.type || "unknown";
-    console.log("Webhook event type:", eventType);
-
-    if (eventType === "post_call_transcription" || eventType === "conversation_update") {
-      const event = payload.data || payload;
-      
-      const {
-        metadata = {},
-        transcript = [],
-        analysis = {},
-        transcript_summary,
-        conversation_id,
-        status,
-        agent_id,
-        call_sid
-      } = event;
-
-      const finalCallSid = call_sid || metadata.call_sid;
-      const callDuration = metadata.call_duration_secs || event.call_duration_secs || 0;
-      const callCost = metadata.cost || event.cost || 0;
-      
-      console.log("Processing call:", {
-        callSid: finalCallSid,
-        conversationId: conversation_id,
-        agentId: agent_id,
-        duration: callDuration,
-        status,
-        hasTranscript: transcript.length > 0,
-        hasSummary: !!transcript_summary
-      });
-
-      if (!finalCallSid && !conversation_id) {
-        console.log("No call_sid or conversation_id found, skipping");
-        return NextResponse.json({ ok: true });
-      }
-
-      await connectDB();
-
-      // Find the call record
-      let call = null;
-      
-      if (finalCallSid) {
-        call = await Call.findOne({ elevenLabsCallSid: finalCallSid });
-      }
-      
-      if (!call && conversation_id) {
-        call = await Call.findOne({ conversationId: conversation_id });
-      }
-
-      if (!call) {
-        console.log("Call not found, creating new record");
-        // Try to find the agent to get userId
-        let userId = null;
-        if (agent_id) {
-          const agent = await Agent.findOne({ agentId: agent_id });
-          if (agent) {
-            userId = agent.userId;
-          }
-        }
-
-        if (!userId) {
-          console.log("Cannot create call record without userId");
-          return NextResponse.json({ ok: true });
-        }
-
-        call = new Call({
-          userId,
-          agentId: agent_id,
-          elevenLabsCallSid: finalCallSid,
-          conversationId: conversation_id,
-          direction: "inbound", // Assume inbound if not found
-          status: "initiated",
-          phoneNumber: metadata.to_number || "unknown",
-          contactName: "Unknown"
-        });
-      }
-
-      // Process transcript
-      let fullTranscript = "";
-      if (transcript && transcript.length > 0) {
-        fullTranscript = transcript
-          .map((seg: any) => `${seg.role || seg.speaker}: ${seg.message || seg.text}`)
-          .join("\n");
-        console.log("Processed transcript length:", fullTranscript.length);
-      }
-
-      // Get summary
-      const summary = analysis.transcript_summary || transcript_summary || "";
-      console.log("Summary found:", !!summary, "Length:", summary.length);
-
-      // Analyze outcome
-      const outcome = summary ? await analyzeCallOutcome(summary) : "neutral";
-      console.log("Determined outcome:", outcome);
-
-      // Update call record
-      if (status === "done" || status === "completed") {
-        call.status = "completed";
-      } else if (status === "failed") {
-        call.status = "failed";
-      }
-
-      call.duration = callDuration;
-      call.cost = callCost / 100; // Convert cents to dollars
-      call.endTime = new Date();
-      call.transcription = fullTranscript;
-      call.summary = summary;
-      call.conversationId = conversation_id;
-      call.hasAudio = status === "done";
-      call.outcome = outcome;
-
-      await call.save();
-      console.log("Call updated successfully:", call._id);
-
-      // Update usage if call completed
-      if (status === "done" && callDuration > 0) {
-        const minutesUsed = Math.ceil(callDuration / 60);
-        if (call.userId) {
-          await updateUserUsage(call.userId.toString(), minutesUsed);
-          console.log("Usage updated:", minutesUsed, "minutes");
-        }
-      }
-
-      return NextResponse.json({ ok: true });
+    // We only act on post_call_transcription; acknowledge others quickly
+    if (type !== "post_call_transcription") {
+      // Accept post_call_audio (no-op) and any other future types
+      return NextResponse.json({ ok: true, ignored: type });
     }
 
-    // Handle other event types
-    console.log("Unhandled event type:", eventType);
-    return NextResponse.json({ ok: true });
+    // Minimal synchronous processing (we still do DB work here; keep it quick)
+    const event = body.data || body; // some SDKs wrap under data
+    const {
+      conversation_id,
+      agent_id,
+      status, // "done" | "completed" | "failed"
+      transcript = [],
+      analysis = {},
+      transcript_summary,
+      metadata = {},
+      call_duration_secs,
+      cost,
+      call_sid, // sometimes present
+    } = event;
 
-  } catch (error:any) {
-    console.error("Webhook error:", error);
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+    // Normalize fields
+    const finalConversationId: string | undefined = conversation_id || metadata.conversation_id;
+    const twilioCallSid: string | undefined =
+      call_sid || metadata.call_sid || metadata.twilio_call_sid;
+
+    const duration =
+      typeof call_duration_secs === "number"
+        ? call_duration_secs
+        : typeof metadata.call_duration_secs === "number"
+          ? metadata.call_duration_secs
+          : 0;
+
+    // cost units can vary; store raw numeric value
+    const rawCost =
+      typeof cost === "number"
+        ? cost
+        : typeof metadata.cost === "number"
+          ? metadata.cost
+          : 0;
+
+    // Build transcript string
+    let fullTranscript = "";
+    if (Array.isArray(transcript) && transcript.length) {
+      fullTranscript = transcript
+        .map((seg: any) => {
+          const role = seg.role || seg.speaker || "unknown";
+          const text = seg.message || seg.text || "";
+          return `${role}: ${text}`;
+        })
+        .join("\n");
+    }
+
+    const summary = analysis?.transcript_summary || transcript_summary || "";
+
+    await connectDB();
+
+    // Prefer conversation_id to find the call row
+    let call =
+      (finalConversationId && (await Call.findOne({ conversationId: finalConversationId }))) ||
+      (twilioCallSid && (await Call.findOne({ elevenLabsCallSid: twilioCallSid })));
+
+    // If still not found, create a minimal record (mainly for inbound)
+    if (!call) {
+      let userId = null;
+      if (agent_id) {
+        const agent = await Agent.findOne({ agentId: agent_id });
+        if (agent) userId = agent.userId;
+      }
+
+      call = new Call({
+        userId,
+        agentId: agent_id,
+        conversationId: finalConversationId,
+        elevenLabsCallSid: twilioCallSid,
+        direction: metadata?.to_number ? "outbound" : "inbound",
+        status: "initiated",
+        phoneNumber: metadata?.to_number || metadata?.from_number || "unknown",
+        startTime: new Date(),
+      });
+    }
+
+    // Update status
+    if (status === "done" || status === "completed") call.status = "completed";
+    else if (status === "failed") call.status = "failed";
+
+    // Update other fields
+    call.conversationId = finalConversationId || call.conversationId;
+    if (twilioCallSid && !call.elevenLabsCallSid) call.elevenLabsCallSid = twilioCallSid;
+
+    call.duration = duration;
+    call.cost = rawCost; // keep as-is (no cents->dollars assumption)
+    call.endTime = new Date();
+    if (fullTranscript) call.transcription = fullTranscript;
+    if (summary) call.summary = summary;
+
+    // Outcome analysis (non-blocking-ish)
+    try {
+      const outcome = await analyzeCallOutcome(summary);
+      call.outcome = outcome;
+    } catch {
+      /* already guarded */
+    }
+
+    await call.save();
+
+    // Update usage minutes if completed
+    if ((status === "done" || status === "completed") && duration > 0 && call.userId) {
+      const minutesUsed = Math.ceil(duration / 60);
+      try {
+        await updateUserUsage(call.userId.toString(), minutesUsed);
+      } catch (e) {
+        console.error("Failed to update usage:", e);
+      }
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err: any) {
+    console.error("Webhook error:", err);
+    // Return 200 so ElevenLabs doesn't disable the webhook; include ok:false in body for our logs
+    return NextResponse.json({ ok: false, error: err?.message ?? "server_error" });
   }
 }
-
-

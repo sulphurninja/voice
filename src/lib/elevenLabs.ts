@@ -1,11 +1,13 @@
-import mongoose from 'mongoose';
-import connectDB from './db';
-import Agent from '@/models/agentModel';
-import callModel from '@/models/callModel';
+// lib/elevenlabs.ts
+import mongoose from "mongoose";
+import connectDB from "./db";
+import Agent from "@/models/agentModel";
+import callModel from "@/models/callModel";
 
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY!;
 const ELEVENLABS_PHONE_ID = process.env.ELEVENLABS_PHONE_ID!;
 
+// ----------------- Create Agent -----------------
 export async function createAgent(data: {
   userId: string;
   name: string;
@@ -18,48 +20,39 @@ export async function createAgent(data: {
     const {
       userId,
       name,
-      description = '',
+      description = "",
       voice_id,
-      first_message = '',
-      system_prompt = '',
+      first_message = "",
+      system_prompt = "",
     } = data;
-    // Get voice details first
-    const voiceRes = await fetch(
-      `https://api.elevenlabs.io/v1/voices/${voice_id}`,
-      {
-        headers: {
-          'xi-api-key': ELEVENLABS_API_KEY!,
-        },
-      }
-    );
-    const voiceData = await voiceRes.json();
-    const voiceName = voiceData.name; // Get the voice name
 
-    /* ───────── call ElevenLabs ───────── */
-    const res = await fetch(
-      'https://api.elevenlabs.io/v1/convai/agents/create',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': ELEVENLABS_API_KEY!,
-        },
-        body: JSON.stringify({
-          name,
-          description,
-          conversation_config: {
-            tts: {
-              voice_id: voice_id,  // <-- voice_id should be here
-            },
-            agent: {
-              first_message,
-              prompt: { prompt: system_prompt },
-            },
-            enable_summary: true,
-          },
-        }),
+    // Fetch voice to store name locally (optional but nice)
+    const voiceRes = await fetch(`https://api.elevenlabs.io/v1/voices/${voice_id}`, {
+      headers: { "xi-api-key": ELEVENLABS_API_KEY },
+    });
+    const voiceData = await voiceRes.json();
+    const voiceName = voiceData?.name || "Unknown";
+
+    // Create agent
+    const res = await fetch("https://api.elevenlabs.io/v1/convai/agents/create", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY,
       },
-    );
+      body: JSON.stringify({
+        name,
+        description,
+        conversation_config: {
+          tts: { voice_id },
+          agent: {
+            first_message,
+            prompt: { prompt: system_prompt },
+          },
+          enable_summary: true,
+        },
+      }),
+    });
 
     if (!res.ok) {
       const text = await res.text();
@@ -68,7 +61,7 @@ export async function createAgent(data: {
 
     const { agent_id } = await res.json();
 
-    /* ───────── save locally ───────── */
+    // Save locally
     await connectDB();
     const agent = await Agent.create({
       userId,
@@ -76,7 +69,7 @@ export async function createAgent(data: {
       description,
       agentId: agent_id,
       voiceId: voice_id,
-      voiceName: voiceName, // Save the voice name
+      voiceName,
       firstMessage: first_message,
       systemPrompt: system_prompt,
       usageMinutes: 0,
@@ -84,92 +77,83 @@ export async function createAgent(data: {
 
     return agent;
   } catch (err) {
-    console.error('Error creating agent:', err);
+    console.error("Error creating agent:", err);
     throw err;
   }
 }
 
-
+// ----------------- Get Agent -----------------
 export async function getAgent(agentId: string) {
   try {
     await connectDB();
     const agent = await Agent.findOne({ agentId });
-    if (!agent) {
-      throw new Error("Agent not found");
-    }
+    if (!agent) throw new Error("Agent not found");
 
-    // Get additional details from ElevenLabs if needed
-    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-      },
-    });
+    // Best-effort fetch of remote details
+    try {
+      const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+        headers: { "xi-api-key": ELEVENLABS_API_KEY },
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`ElevenLabs API error: ${errorText}`);
-      // Return local data if API fails
-      return agent;
-    }
-
-    const elevenlabsData = await response.json();
-
-    // Merge data
-    return {
-      ...agent.toObject(),
-      usage_minutes: agent.usageMinutes,
-      disabled: elevenlabsData.disabled || agent.disabled,
-      conversation_config: {
-        first_message: agent.firstMessage,
-        system_prompt: agent.systemPrompt,
+      if (response.ok) {
+        const eleven = await response.json();
+        return {
+          ...agent.toObject(),
+          usage_minutes: agent.usageMinutes,
+          disabled: eleven.disabled ?? agent.disabled,
+          conversation_config: {
+            first_message: agent.firstMessage,
+            system_prompt: agent.systemPrompt,
+          },
+        };
       }
-    };
+    } catch (e) {
+      console.error("ElevenLabs get agent failed:", e);
+    }
+
+    return agent;
   } catch (error) {
     console.error("Error getting agent:", error);
     throw error;
   }
 }
 
+// ----------------- Update Agent -----------------
 export async function updateAgent(agentId: string, updates: any) {
   try {
-    // First, update in ElevenLabs
-    const elevenlabsUpdates: any = {};
+    const patch: any = {};
+    if (updates.name) patch.name = updates.name;
+    if (updates.first_message) patch.first_message = updates.first_message;
+    if (updates.system_prompt) patch.system_prompt = updates.system_prompt;
+    if (updates.voice_id) patch.voice_id = updates.voice_id;
+    if (typeof updates.disabled === "boolean") patch.disabled = updates.disabled;
 
-    if (updates.name) elevenlabsUpdates.name = updates.name;
-    if (updates.first_message) elevenlabsUpdates.first_message = updates.first_message;
-    if (updates.system_prompt) elevenlabsUpdates.system_prompt = updates.system_prompt;
-    if (updates.voice_id) elevenlabsUpdates.voice_id = updates.voice_id;
-    if (updates.disabled !== undefined) elevenlabsUpdates.disabled = updates.disabled;
-
-    if (Object.keys(elevenlabsUpdates).length > 0) {
+    if (Object.keys(patch).length) {
       const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "xi-api-key": ELEVENLABS_API_KEY,
         },
-        body: JSON.stringify(elevenlabsUpdates),
+        body: JSON.stringify(patch),
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`ElevenLabs API error: ${errorText}`);
+        const text = await response.text();
+        throw new Error(`ElevenLabs API error: ${text}`);
       }
     }
 
-    // Then, update in our database
     await connectDB();
     const agent = await Agent.findOne({ agentId });
-    if (!agent) {
-      throw new Error("Agent not found");
-    }
+    if (!agent) throw new Error("Agent not found");
 
     if (updates.name) agent.name = updates.name;
     if (updates.description) agent.description = updates.description;
     if (updates.first_message) agent.firstMessage = updates.first_message;
     if (updates.system_prompt) agent.systemPrompt = updates.system_prompt;
     if (updates.voice_id) agent.voiceId = updates.voice_id;
-    if (updates.disabled !== undefined) agent.disabled = updates.disabled;
+    if (typeof updates.disabled === "boolean") agent.disabled = updates.disabled;
 
     await agent.save();
     return agent;
@@ -179,20 +163,16 @@ export async function updateAgent(agentId: string, updates: any) {
   }
 }
 
+// ----------------- Delete Agent -----------------
 export async function deleteAgent(agentId: string) {
   try {
-    // First, delete from ElevenLabs
-    const response = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
+    await fetch(`https://api.elevenlabs.io/v1/convai/agents/${agentId}`, {
       method: "DELETE",
-      headers: {
-        "xi-api-key": ELEVENLABS_API_KEY,
-      },
+      headers: { "xi-api-key": ELEVENLABS_API_KEY },
     });
 
-    // Then, delete from our database
     await connectDB();
     await Agent.deleteOne({ agentId });
-
     return { success: true };
   } catch (error) {
     console.error("Error deleting agent:", error);
@@ -200,6 +180,7 @@ export async function deleteAgent(agentId: string) {
   }
 }
 
+// ----------------- Initiate Outbound Call -----------------
 export async function initiateCall(
   userId: string,
   agentId: string,
@@ -209,59 +190,33 @@ export async function initiateCall(
   campaignId?: string
 ) {
   try {
-    console.log(`Initiating call with:`, {
-      userId,
-      agentId,
-      phoneNumber,
-      contactName,
-      hasCampaignId: !!campaignId
-    });
-
+    console.log("Initiating call", { userId, agentId, phoneNumber, contactName, hasCampaignId: !!campaignId });
     await connectDB();
 
-    // ——— fetch agent ———
-    console.log(`Looking up agent with agentId: ${agentId}`);
-
-    // Fix: Don't try to use agentId as ObjectId if it's not in ObjectId format
-    // Use separate queries instead of $or with ObjectId
+    // Find agent: try by agentId, else try by _id if it looks like ObjectId
     let agent = await Agent.findOne({ agentId, userId });
-
-    // If not found by agentId field, and agentId looks like a MongoDB ObjectId, try by _id
     if (!agent && /^[0-9a-fA-F]{24}$/.test(agentId)) {
       try {
         agent = await Agent.findOne({ _id: agentId, userId });
-      } catch (error) {
-        console.log("Error when looking up agent by _id:", error);
+      } catch (e) {
+        console.warn("Agent lookup by _id failed:", e);
       }
     }
+    if (!agent) throw new Error(`Agent not found with ID: ${agentId}`);
 
-    if (!agent) {
-      console.error(`Agent not found with agentId: ${agentId}`);
-      throw new Error(`Agent not found with ID: ${agentId}`);
-    }
-
-    console.log(`Found agent: ${agent.name} (${agent.agentId})`);
-
-    // ——— normalise the number (India by default) ———
+    // Normalize number (default India)
     let formatted = phoneNumber.trim().replace(/[\s\-\(\)]/g, "");
-    if (!formatted.startsWith("+"))
+    if (!formatted.startsWith("+")) {
       formatted = formatted.startsWith("91") ? `+${formatted}` : `+91${formatted}`;
-
-    console.log(`Formatted phone number: ${formatted}`);
-
-    // Set up the campaign ID if provided
-    let campaignObjectId;
-    if (campaignId) {
-      try {
-        campaignObjectId = new mongoose.Types.ObjectId(campaignId);
-        console.log(`Campaign ID converted to ObjectId: ${campaignObjectId}`);
-      } catch (error) {
-        console.error(`Invalid campaign ID format: ${campaignId}`, error);
-      }
     }
 
-    // ——— create DB row (status=queued) ———
-    console.log('Creating call record in database...');
+    // Campaign id (optional)
+    let campaignObjectId;
+    if (campaignId && /^[0-9a-fA-F]{24}$/.test(campaignId)) {
+      campaignObjectId = new mongoose.Types.ObjectId(campaignId);
+    }
+
+    // Create DB row (queued)
     const call = await callModel.create({
       userId,
       agentId: agent._id,
@@ -274,80 +229,62 @@ export async function initiateCall(
       startTime: new Date(),
     });
 
-    console.log(`Call record created with ID: ${call._id}`);
-
-    // ——— hit ElevenLabs ———
-    console.log('Making API request to ElevenLabs...');
-    console.log('Request payload:', {
-      agent_id: agent.agentId,
-      agent_phone_number_id: process.env.ELEVENLABS_PHONE_ID,
-      to_number: formatted,
-      agent_start_message: customMessage || undefined,
+    // Hit ElevenLabs
+    const resp = await fetch("https://api.elevenlabs.io/v1/convai/twilio/outbound_call", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        agent_id: agent.agentId,
+        agent_phone_number_id: ELEVENLABS_PHONE_ID,
+        to_number: formatted,
+        agent_start_message: customMessage || undefined,
+      }),
     });
-
-    const resp = await fetch(
-      "https://api.elevenlabs.io/v1/convai/twilio/outbound_call",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "xi-api-key": process.env.ELEVENLABS_API_KEY!,
-        },
-        body: JSON.stringify({
-          agent_id: agent.agentId,
-          agent_phone_number_id: process.env.ELEVENLABS_PHONE_ID!,
-          to_number: formatted,
-          agent_start_message: customMessage || undefined,
-        }),
-      }
-    );
 
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error(`ElevenLabs API error: Status ${resp.status}`, errText);
       call.status = "failed";
       call.notes = `ElevenLabs error: ${errText}`;
       await call.save();
-
       throw new Error(`ElevenLabs API error (${resp.status}): ${errText}`);
     }
 
     const data = await resp.json();
-    console.log('ElevenLabs API response:', data);
 
-    const callSid = data.callSid || data.call_sid || data.call_id; // ← ALL cases
-    if (!callSid) {
-      console.warn('No callSid returned from ElevenLabs API');
-    }
+    // The API returns both conversation_id and callSid (naming can vary)
+    const conversationId =
+      data.conversation_id || data.conversationId || data.conversationID || null;
+    const callSid = data.callSid || data.call_sid || data.call_id || null;
 
-    call.elevenLabsCallSid = callSid;
-    call.status = 'initiated';
+    call.status = "initiated";
+    if (conversationId) call.conversationId = conversationId; // <-- IMPORTANT
+    if (callSid) call.elevenLabsCallSid = callSid;
     await call.save();
-    console.log(`Call record updated with SID: ${callSid}`);
 
     agent.lastCalledAt = new Date();
     await agent.save();
-    console.log(`Agent lastCalledAt updated to: ${agent.lastCalledAt}`);
 
     return {
       id: call._id,
-      status: 'initiated',
+      status: "initiated",
       callSid,
+      conversationId,
       contactName,
-      phoneNumber: formatted
+      phoneNumber: formatted,
     };
   } catch (error) {
-    console.error('Error in initiateCall:', error);
+    console.error("Error in initiateCall:", error);
     throw error;
   }
 }
 
-
-/* NEW ──────────────────────────────────────────────────────────────── */
-export async function getConversation(callSid: string) {
-  // GET /v1/conversations/{conversation_id}
+// ----------------- Get Conversation (by conversationId) -----------------
+export async function getConversation(conversationId: string) {
   const res = await fetch(
-    `https://api.elevenlabs.io/v1/conversations/${callSid}`,
+    `https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`,
     { headers: { "xi-api-key": ELEVENLABS_API_KEY } }
   );
 
@@ -356,16 +293,9 @@ export async function getConversation(callSid: string) {
       `ElevenLabs conversation fetch failed – ${res.status} ${res.statusText}`
     );
   }
-  /* shape per docs: https://elevenlabs.io/docs/api-reference/conversations/get-conversation#response
-     {
-       conversation_id: "...",
-       agent_id: "...",
-       summary: "...",
-       messages: [...],
-       ...
-     }
-  */
   return res.json() as Promise<{
+    conversation_id: string;
+    agent_id: string;
     summary?: string;
     messages?: { role: "agent" | "user"; text: string }[];
   }>;

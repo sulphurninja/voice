@@ -193,19 +193,24 @@ export async function POST(req: NextRequest) {
     // If still not found, create a minimal record (mainly for inbound)
     if (!call) {
       let userId = null;
+      let agentObjectId = null;
+
       if (agent_id) {
         const agent = await Agent.findOne({ agentId: agent_id });
-        if (agent) userId = agent.userId;
+        if (agent) {
+          userId = agent.userId;
+          agentObjectId = agent._id; // Use the MongoDB ObjectId of the agent
+        }
       }
 
       call = new Call({
-        userId,
-        agentId: agent_id,
+        userId: userId || null,
+        agentId: agentObjectId || null, // Store the MongoDB ObjectId reference
+        elevenLabsAgentId: agent_id || null, // Store the ElevenLabs agent ID string
         conversationId: finalConversationId,
         elevenLabsCallSid: twilioCallSid,
         direction: metadata?.to_number ? "outbound" : "inbound",
         status: "initiated",
-        // Better phone number detection
         phoneNumber: metadata?.from_number ||
           metadata?.to_number ||
           metadata?.caller_number ||

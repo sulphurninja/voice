@@ -137,7 +137,6 @@ export async function updateAgent(agentId: string, updates: any) {
         },
         body: JSON.stringify(patch),
       });
-
       if (!response.ok) {
         const text = await response.text();
         throw new Error(`ElevenLabs API error: ${text}`);

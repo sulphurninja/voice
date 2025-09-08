@@ -8,25 +8,22 @@ import useSWR from "swr";
 import { useAuth } from "@/contexts/AuthContext";
 
 import {
-  LayoutDashboard, 
-  ShoppingBag, 
-  UtensilsCrossed, 
+  LayoutDashboard,
+  ShoppingBag,
   Users,
   BarChart,
-  Settings, 
-  HelpCircle, 
-  LogOut, 
+  Settings,
+  HelpCircle,
+  LogOut,
   ChevronLeft,
-  Menu, 
-  Plus, 
-  Contact, 
+  Menu,
+  Plus,
+  Contact,
   Shield,
   Calendar,
   CreditCard,
   Clock,
   Star,
-  Utensils,
-  ChefHat,
   Receipt,
   TrendingUp,
   MapPin,
@@ -34,7 +31,10 @@ import {
   PhoneCall,
   Bot,
   Headphones,
-  Mic
+  Mic,
+  Database,
+  MessageSquare,
+  Activity
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,18 +52,6 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
-  // Restaurant + AI data fetching
-const { data: ordersData } = useSWR<{ orders: any[], stats: any }>("/api/orders?status=active", fetcher);
-const activeOrders = ordersData?.orders?.length ?? 0;
-const pendingOrders = ordersData?.orders?.filter(o => o.status === 'pending')?.length ?? 0;
-
-const { data: reservationsData } = useSWR<{ reservations: any[] }>("/api/reservations?status=today", fetcher);
-const todayReservations = reservationsData?.reservations?.length ?? 0;
-
-
-  const { data: menuData } = useSWR<{ items: any[] }>("/api/menu", fetcher);
-  const menuItems = menuData?.items?.length ?? 0;
-
   // AI Voice Agent data
   const { data: agentsData } = useSWR<{ agents: any[] }>("/api/agents", fetcher);
   const agentCount = agentsData?.agents?.length ?? 0;
@@ -73,6 +61,10 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
   const { data: callsData } = useSWR<{ calls: any[], pagination: any }>("/api/calls?status=in-progress", fetcher);
   const activeCallCount = callsData?.calls?.length ?? 0;
 
+  // Conversations
+  const { data: conversationsData } = useSWR<{ conversations: any[] }>("/api/conversations?status=active", fetcher);
+  const activeConversations = conversationsData?.conversations?.length ?? 0;
+
   const navItems = [
     {
       icon: <LayoutDashboard className="h-5 w-5" />,
@@ -80,40 +72,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
       href: "/dashboard",
       description: "Overview & analytics"
     },
-    // Restaurant Operations Section
-    {
-      icon: <ShoppingBag className="h-5 w-5" />,
-      label: "Orders",
-      href: "/dashboard/orders",
-      badge: activeOrders > 0 ? activeOrders : undefined,
-      description: "Active & pending orders",
-      urgent: pendingOrders > 5,
-      section: "restaurant"
-    },
-    {
-      icon: <UtensilsCrossed className="h-5 w-5" />,
-      label: "Menu",
-      href: "/dashboard/menu",
-      badge: menuItems,
-      description: "Menu items & categories",
-      section: "restaurant"
-    },
-    {
-      icon: <Calendar className="h-5 w-5" />,
-      label: "Reservations",
-      href: "/dashboard/reservations",
-      badge: todayReservations > 0 ? todayReservations : undefined,
-      description: "Table bookings",
-      section: "restaurant"
-    },
-    {
-      icon: <ChefHat className="h-5 w-5" />,
-      label: "Kitchen",
-      href: "/dashboard/kitchen",
-      description: "Kitchen operations",
-      section: "restaurant"
-    },
-    // AI Voice System Section
+    // Core AI Voice System
     {
       icon: <PhoneCall className="h-5 w-5" />,
       label: "Calls",
@@ -130,36 +89,53 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
       description: "Voice AI assistants",
       section: "ai"
     },
-    // Customer & Business Section
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
+      label: "Call History",
+      href: "/dashboard/calls/history",
+      badge: activeConversations > 0 ? activeConversations : undefined,
+      description: "Call transcripts & logs",
+      section: "ai"
+    },
+    // {
+    //   icon: <Activity className="h-5 w-5" />,
+    //   label: "Performance",
+    //   href: "/dashboard/performance",
+    //   description: "AI performance metrics",
+    //   section: "ai"
+    // },
+    // Business & Management
     {
       icon: <Users className="h-5 w-5" />,
-      label: "Customers",
+      label: "Contacts",
       href: "/dashboard/contacts",
       description: "Customer database",
       section: "business"
     },
     {
-      icon: <CreditCard className="h-5 w-5" />,
-      label: "Payments",
-      href: "/dashboard/billing",
-      description: "Transactions & billing",
+      icon: <Database className="h-5 w-5" />,
+      label: "Knowledge Base",
+      href: "/dashboard/knowledge",
+      description: "AI training data",
       section: "business"
     },
     {
       icon: <BarChart className="h-5 w-5" />,
       label: "Analytics",
       href: "/dashboard/analytics",
-      description: "Sales & performance",
+      description: "Usage & insights",
+      section: "business"
+    },
+    {
+      icon: <CreditCard className="h-5 w-5" />,
+      label: "Billing",
+      href: "/dashboard/billing",
+      description: "Usage & payments",
       section: "business"
     }
   ];
 
   const bottomNavItems = [
-    {
-      icon: <MapPin className="h-5 w-5" />,
-      label: "Locations",
-      href: "/dashboard/locations"
-    },
     {
       icon: <Settings className="h-5 w-5" />,
       label: "Settings",
@@ -203,7 +179,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
 
   const NavItem = ({ item, isBottom = false }: { item: any, isBottom?: boolean }) => {
     const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
-    
+
     if (collapsed) {
       return (
         <TooltipProvider delayDuration={100}>
@@ -219,7 +195,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
                   className={cn(
                     "justify-center px-3 py-3 relative h-12 w-12 rounded-xl transition-all duration-200",
                     active
-                      ? "bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-600 dark:text-orange-400 shadow-sm border border-orange-500/20"
+                      ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-600 dark:text-blue-400 shadow-sm border border-blue-500/20"
                       : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/10 hover:scale-105"
                   )}
                 >
@@ -227,7 +203,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
                   {item.badge !== undefined && (
                     <Badge className={cn(
                       "absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs",
-                      item.urgent ? "bg-red-500 text-white animate-pulse" : "bg-orange-500 text-white"
+                      item.urgent ? "bg-red-500 text-white animate-pulse" : "bg-blue-500 text-white"
                     )}>
                       {typeof item.badge === 'string' ? item.badge : (typeof item.badge === 'number' && item.badge > 9 ? '9+' : item.badge)}
                     </Badge>
@@ -255,14 +231,14 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
           className={cn(
             "w-full justify-start gap-3 px-3 py-3 h-auto rounded-xl transition-all duration-200 group-hover:scale-[1.02]",
             active
-              ? "bg-gradient-to-r from-orange-500/20 to-red-500/20 text-orange-600 dark:text-orange-400 shadow-sm border border-orange-500/20"
+              ? "bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-600 dark:text-blue-400 shadow-sm border border-blue-500/20"
               : "text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/10"
           )}
         >
           <div className="flex items-center gap-3 flex-1">
             <div className={cn(
               "flex items-center justify-center w-8 h-8 rounded-lg transition-colors",
-              active ? "bg-orange-500/10" : "group-hover:bg-sidebar-accent/20"
+              active ? "bg-blue-500/10" : "group-hover:bg-sidebar-accent/20"
             )}>
               {item.icon}
             </div>
@@ -275,9 +251,9 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
             {item.badge !== undefined && (
               <Badge className={cn(
                 "ml-auto text-xs",
-                item.urgent ? "bg-red-500 text-white animate-pulse" : 
-                item.section === "ai" ? "bg-blue-500/20 text-blue-600 border-blue-500/20" :
-                "bg-orange-500/20 text-orange-600 border-orange-500/20"
+                item.urgent ? "bg-red-500 text-white animate-pulse" :
+                  item.section === "ai" ? "bg-blue-500/20 text-blue-600 border-blue-500/20" :
+                    "bg-purple-500/20 text-purple-600 border-purple-500/20"
               )}>
                 {item.badge}
               </Badge>
@@ -289,7 +265,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
   };
 
   // Group items by section
-  const restaurantItems = navItems.filter(item => !item.section || item.section === 'restaurant');
+  const coreItems = navItems.filter(item => !item.section);
   const aiItems = navItems.filter(item => item.section === 'ai');
   const businessItems = navItems.filter(item => item.section === 'business');
 
@@ -329,22 +305,22 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
         )}>
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="relative">
-              <div className="h-9 w-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
-                <UtensilsCrossed className="h-5 w-5 text-white" />
+              <div className="h-9 w-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                <Mic className="h-5 w-5 text-white" />
               </div>
               <div className="absolute -top-0.5 -right-0.5">
                 <div className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-600"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600"></span>
                 </div>
               </div>
             </div>
             {!collapsed && (
               <div>
-                <span className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-orange-600 to-red-600 dark:from-orange-400 dark:to-red-400">
-                  RestaurantOS
+                <span className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+                  Wow Voice
                 </span>
-                <p className="text-xs text-sidebar-foreground/60">AI-Powered Management</p>
+                <p className="text-xs text-sidebar-foreground/60">AI Voice Platform</p>
               </div>
             )}
           </Link>
@@ -363,7 +339,7 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
         <div className="flex-1 flex flex-col min-h-0">
           {collapsed ? (
             <div className="flex-1 flex flex-col justify-start py-6 px-3 space-y-3">
-              <NavSection items={restaurantItems} />
+              <NavSection items={coreItems} />
               <div className="pt-2">
                 <Separator className="bg-sidebar-border/50" />
               </div>
@@ -384,14 +360,14 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
           ) : (
             <ScrollArea className="flex-1 h-full">
               <nav className="py-6 px-3 space-y-6">
-                <NavSection title="Restaurant" items={restaurantItems} />
+                <NavSection items={coreItems} />
                 <NavSection title="AI Voice System" items={aiItems} />
-                <NavSection title="Business" items={businessItems} />
-                
+                <NavSection title="Business Management" items={businessItems} />
+
                 <div className="py-2">
                   <Separator className="bg-sidebar-border/50" />
                 </div>
-                
+
                 <NavSection items={bottomNavItems} isBottom />
               </nav>
             </ScrollArea>
@@ -405,35 +381,31 @@ const todayReservations = reservationsData?.reservations?.length ?? 0;
         )}>
           {/* Quick Action Buttons */}
           <div className={cn("space-y-2 mb-4", collapsed && "space-y-1")}>
-            <Link href="/dashboard/orders/new" onClick={() => setMobileOpen(false)}>
+            <Link href="/dashboard/calls/new" onClick={() => setMobileOpen(false)}>
               <Button
                 className={cn(
-                  "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white shadow-lg",
+                  "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-lg",
                   "transition-all duration-200 hover:scale-105 rounded-xl",
                   collapsed ? "px-3 justify-center w-full" : "w-full"
                 )}
               >
-                <Plus className="h-4 w-4" />
-                {!collapsed && <span className="ml-2">New Order</span>}
+                <PhoneCall className="h-4 w-4" />
+                {!collapsed && <span className="ml-2">New Call</span>}
               </Button>
             </Link>
-            
+
             {!collapsed && (
-              <Link href="/dashboard/calls/new" onClick={() => setMobileOpen(false)}>
+              <Link href="/dashboard/agents/new" onClick={() => setMobileOpen(false)}>
                 <Button
                   variant="outline"
-                  className="w-full gap-2 border-blue-500/20 text-blue-600 hover:bg-blue-500/10"
+                  className="w-full gap-2 border-purple-500/20 text-purple-600 hover:bg-purple-500/10"
                 >
-                  <PhoneCall className="h-4 w-4" />
-                  <span>Make Call</span>
+                  <Bot className="h-4 w-4" />
+                  <span>Create Agent</span>
                 </Button>
               </Link>
             )}
           </div>
-
-          {/* Action Buttons */}
-      
-        
         </div>
       </aside>
     </>

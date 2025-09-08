@@ -202,13 +202,7 @@ export default function LoginPage() {
                   repeatType: "reverse"
                 }}
               />
-              <Image
-                src="/logo.png"
-                alt="Wow AI"
-                width={48}
-                height={48}
-                className="h-10 w-auto relative z-10"
-              />
+
             </motion.div>
           </Link>
           <motion.h1

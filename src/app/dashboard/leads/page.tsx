@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
@@ -196,7 +196,31 @@ const sourceOptions = [
   "Other"
 ];
 
-export default function LeadsPage() {
+// Extract the loading component
+const LeadsPageSkeleton = () => (
+  <div className="min-h-screen text-foreground flex dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/20">
+    <DashboardSidebar />
+    <main className="flex-1 overflow-hidden bg-transparent">
+      <DashboardHeader />
+      <div className="flex items-center justify-center h-[600px]">
+        <div className="text-center space-y-4">
+          <div className="relative">
+            <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 flex items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+            </div>
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg">Loading Your Pipeline</h3>
+            <p className="text-muted-foreground">Setting up your lead management workspace...</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+);
+
+
+const LeadsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -2188,5 +2212,13 @@ const response = await fetch(`/api/leads/${draggableId}/move`, {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={<LeadsPageSkeleton />}>
+      <LeadsPageContent />
+    </Suspense>
   );
 }

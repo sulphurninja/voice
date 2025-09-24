@@ -34,7 +34,9 @@ import {
   Mic,
   Database,
   MessageSquare,
-  Activity
+  Activity,
+  Target,
+  GitBranch
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -97,21 +99,30 @@ export function DashboardSidebar() {
       description: "Call transcripts & logs",
       section: "ai"
     },
-    // {
-    //   icon: <Activity className="h-5 w-5" />,
-    //   label: "Performance",
-    //   href: "/dashboard/performance",
-    //   description: "AI performance metrics",
-    //   section: "ai"
-    // },
-    // Business & Management
+    // CRM & Lead Management
+    {
+      icon: <Target className="h-5 w-5" />,
+      label: "Leads",
+      href: "/dashboard/leads",
+      description: "Lead management & CRM",
+      section: "crm",
+      isNew: true
+    },
+    {
+      icon: <GitBranch className="h-5 w-5" />,
+      label: "Pipelines",
+      href: "/dashboard/leads/customize",
+      description: "Sales pipeline setup",
+      section: "crm"
+    },
     {
       icon: <Users className="h-5 w-5" />,
       label: "Contacts",
       href: "/dashboard/contacts",
       description: "Customer database",
-      section: "business"
+      section: "crm"
     },
+    // Business & Management
     {
       icon: <Database className="h-5 w-5" />,
       label: "Knowledge Base",
@@ -178,7 +189,9 @@ export function DashboardSidebar() {
   };
 
   const NavItem = ({ item, isBottom = false }: { item: any, isBottom?: boolean }) => {
-    const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+    const active = pathname === item.href ||
+                  (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
+                  (item.href === '/dashboard/leads' && pathname.startsWith('/dashboard/leads'));
 
     if (collapsed) {
       return (
@@ -188,7 +201,7 @@ export function DashboardSidebar() {
               <Link
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
-                className="flex justify-center"
+                className="flex justify-center relative"
               >
                 <Button
                   variant="ghost"
@@ -200,6 +213,9 @@ export function DashboardSidebar() {
                   )}
                 >
                   {item.icon}
+                  {item.isNew && (
+                    <div className="absolute -top-1 -right-1 h-3 w-3 bg-gradient-to-r from-orange-400 to-red-500 rounded-full animate-pulse" />
+                  )}
                   {item.badge !== undefined && (
                     <Badge className={cn(
                       "absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center text-xs",
@@ -224,7 +240,7 @@ export function DashboardSidebar() {
       <Link
         href={item.href}
         onClick={() => setMobileOpen(false)}
-        className="block group"
+        className="block group relative"
       >
         <Button
           variant="ghost"
@@ -243,7 +259,14 @@ export function DashboardSidebar() {
               {item.icon}
             </div>
             <div className="flex flex-col items-start flex-1">
-              <span className="font-medium">{item.label}</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{item.label}</span>
+                {item.isNew && (
+                  <Badge className="bg-gradient-to-r from-orange-400 to-red-500 text-white text-xs px-1.5 py-0.5 animate-pulse">
+                    NEW
+                  </Badge>
+                )}
+              </div>
               {item.description && (
                 <span className="text-xs text-muted-foreground">{item.description}</span>
               )}
@@ -253,7 +276,8 @@ export function DashboardSidebar() {
                 "ml-auto text-xs",
                 item.urgent ? "bg-red-500 text-white animate-pulse" :
                   item.section === "ai" ? "bg-blue-500/20 text-blue-600 border-blue-500/20" :
-                    "bg-purple-500/20 text-purple-600 border-purple-500/20"
+                    item.section === "crm" ? "bg-green-500/20 text-green-600 border-green-500/20" :
+                      "bg-purple-500/20 text-purple-600 border-purple-500/20"
               )}>
                 {item.badge}
               </Badge>
@@ -267,6 +291,7 @@ export function DashboardSidebar() {
   // Group items by section
   const coreItems = navItems.filter(item => !item.section);
   const aiItems = navItems.filter(item => item.section === 'ai');
+  const crmItems = navItems.filter(item => item.section === 'crm');
   const businessItems = navItems.filter(item => item.section === 'business');
 
   return (
@@ -347,6 +372,10 @@ export function DashboardSidebar() {
               <div className="pt-2">
                 <Separator className="bg-sidebar-border/50" />
               </div>
+              <NavSection items={crmItems} />
+              <div className="pt-2">
+                <Separator className="bg-sidebar-border/50" />
+              </div>
               <NavSection items={businessItems} />
               <div className="pt-4">
                 <Separator className="bg-sidebar-border/50" />
@@ -362,6 +391,7 @@ export function DashboardSidebar() {
               <nav className="py-6 px-3 space-y-6">
                 <NavSection items={coreItems} />
                 <NavSection title="AI Voice System" items={aiItems} />
+                <NavSection title="CRM & Lead Management" items={crmItems} />
                 <NavSection title="Business Management" items={businessItems} />
 
                 <div className="py-2">
@@ -395,15 +425,28 @@ export function DashboardSidebar() {
             </Link>
 
             {!collapsed && (
-              <Link href="/dashboard/agents/new" onClick={() => setMobileOpen(false)}>
-                <Button
-                  variant="outline"
-                  className="w-full gap-2 border-purple-500/20 text-purple-600 hover:bg-purple-500/10"
-                >
-                  <Bot className="h-4 w-4" />
-                  <span>Create Agent</span>
-                </Button>
-              </Link>
+              <div className="grid grid-cols-2 gap-2">
+                <Link href="/dashboard/leads" onClick={() => setMobileOpen(false)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-green-500/20 text-green-600 hover:bg-green-500/10"
+                  >
+                    <Target className="h-3 w-3 mr-1" />
+                    <span className="text-xs">Leads</span>
+                  </Button>
+                </Link>
+                <Link href="/dashboard/agents/new" onClick={() => setMobileOpen(false)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-purple-500/20 text-purple-600 hover:bg-purple-500/10"
+                  >
+                    <Bot className="h-3 w-3 mr-1" />
+                    <span className="text-xs">Agent</span>
+                  </Button>
+                </Link>
+              </div>
             )}
           </div>
         </div>

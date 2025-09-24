@@ -6,9 +6,12 @@ export interface IContact extends Document {
   phoneNumber: string;
   email?: string;
   company?: string;
+  jobTitle?: string;
   notes?: string;
   tags?: string[];
   lastContacted?: Date;
+  source?: string;
+  status?: 'active' | 'inactive' | 'do-not-call';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +42,10 @@ const ContactSchema = new Schema<IContact>(
       type: String,
       trim: true,
     },
+    jobTitle: {
+      type: String,
+      trim: true,
+    },
     notes: {
       type: String,
     },
@@ -46,9 +53,23 @@ const ContactSchema = new Schema<IContact>(
     lastContacted: {
       type: Date,
     },
+    source: {
+      type: String,
+      trim: true,
+    },
+    status: {
+      type: String,
+      enum: ['active', 'inactive', 'do-not-call'],
+      default: 'active',
+    },
   },
   { timestamps: true }
 );
+
+// Index for efficient queries
+ContactSchema.index({ userId: 1, phoneNumber: 1 }, { unique: true });
+ContactSchema.index({ userId: 1, email: 1 });
+ContactSchema.index({ userId: 1, tags: 1 });
 
 const Contact = mongoose.models.Contact || mongoose.model<IContact>('Contact', ContactSchema);
 

@@ -220,7 +220,7 @@ const LeadsPageSkeleton = () => (
 );
 
 
-const LeadsPageContent() {
+function LeadsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import {
   Search,
   Plus,
-  Filter,
   MoreVertical,
   FileText,
   Database,
@@ -20,17 +19,17 @@ import {
   Calendar,
   User,
   BookOpen,
-  Lightbulb,
   MessageCircle,
   Activity,
   TrendingUp,
   Clock,
   CheckCircle,
-  AlertCircle,
   Star,
   Globe,
   Lock,
-  Users
+  Link,
+  Users,
+  ExternalLink
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,148 +44,183 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { DashboardSidebar } from "@/components/dashboard/sidebar";
 import { DashboardHeader } from "@/components/dashboard/header";
+import { toast } from "sonner";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
-
-// Mock data for knowledge base items
-const mockKnowledgeItems = [
-  {
-    id: "kb-1",
-    title: "Customer Service Best Practices",
-    description: "Comprehensive guide for handling customer inquiries and complaints",
-    type: "document",
-    category: "Customer Service",
-    status: "active",
-    visibility: "public",
-    usage_count: 156,
-    last_updated: "2024-01-15T10:30:00Z",
-    created_by: "John Doe",
-    tags: ["customer-service", "best-practices", "communication"],
-    content_preview: "This document outlines the best practices for providing excellent customer service...",
-    ai_training_status: "trained",
-    performance_score: 92
-  },
-  {
-    id: "kb-2",
-    title: "Product Information Database",
-    description: "Detailed information about all products and services",
-    type: "database",
-    category: "Products",
-    status: "active",
-    visibility: "private",
-    usage_count: 89,
-    last_updated: "2024-01-14T15:45:00Z",
-    created_by: "Sarah Wilson",
-    tags: ["products", "specifications", "pricing"],
-    content_preview: "Complete product catalog with specifications, pricing, and availability...",
-    ai_training_status: "training",
-    performance_score: 85
-  },
-  {
-    id: "kb-3",
-    title: "FAQ Collection",
-    description: "Frequently asked questions and their answers",
-    type: "faq",
-    category: "Support",
-    status: "draft",
-    visibility: "public",
-    usage_count: 234,
-    last_updated: "2024-01-13T09:20:00Z",
-    created_by: "Mike Johnson",
-    tags: ["faq", "support", "common-questions"],
-    content_preview: "Q: How do I reset my password? A: You can reset your password by...",
-    ai_training_status: "pending",
-    performance_score: 78
-  },
-  {
-    id: "kb-4",
-    title: "Company Policies",
-    description: "Internal policies and procedures",
-    type: "policy",
-    category: "Internal",
-    status: "active",
-    visibility: "private",
-    usage_count: 45,
-    last_updated: "2024-01-12T14:10:00Z",
-    created_by: "HR Team",
-    tags: ["policies", "procedures", "internal"],
-    content_preview: "This document contains all company policies regarding...",
-    ai_training_status: "trained",
-    performance_score: 95
-  }
-];
 
 export default function KnowledgePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedType, setSelectedType] = useState("all");
-  const [selectedStatus, setSelectedStatus] = useState("all");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newItemType, setNewItemType] = useState("document");
+  const [newItemType, setNewItemType] = useState("text");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    content: "",
+    url: "",
+    category: "",
+    tags: "",
+    isGlobal: false,
+  });
+
   const router = useRouter();
 
-  // Mock SWR data
-  const { data: knowledgeData } = useSWR("/api/knowledge", () => ({
-    items: mockKnowledgeItems,
-    stats: {
-      total_items: 4,
-      active_items: 3,
-      trained_items: 2,
-      total_usage: 524
-    }
-  }));
+  const { data: knowledgeData, error, mutate } = useSWR("/api/knowledge", fetcher);
 
+  const documents = knowledgeData?.documents || [];
   const stats = knowledgeData?.stats || {
     total_items: 0,
     active_items: 0,
-    trained_items: 0,
+    global_items: 0,
     total_usage: 0
   };
 
-  const filteredItems = mockKnowledgeItems.filter(item => {
-    const matchesSearch = item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Add this state near the top with other state declarations
+  const [existingKnowledge, setExistingKnowledge] = useState<any[]>([]);
 
-    const matchesCategory = selectedCategory === "all" || item.category === selectedCategory;
-    const matchesType = selectedType === "all" || item.type === selectedType;
-    const matchesStatus = selectedStatus === "all" || item.status === selectedStatus;
+  // Add this useEffect to load existing knowledge documents
+  useEffect(() => {
+    const fetchKnowledgeDocuments = async () => {
+      try {
+        const response = await fetch('/api/knowledge');
+        if (response.ok) {
+          const data = await response.json();
+          setExistingKnowledge(data.documents || []);
+        }
+      } catch (error) {
+        console.error('Error fetching knowledge documents:', error);
+      }
+    };
 
-    return matchesSearch && matchesCategory && matchesType && matchesStatus;
+    fetchKnowledgeDocuments();
+  }, []);
+
+  const filteredDocuments = documents.filter((doc: any) => {
+    const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.tags?.some((tag: string) => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesCategory = selectedCategory === "all" || doc.category === selectedCategory;
+    const matchesType = selectedType === "all" || doc.type === selectedType;
+
+    return matchesSearch && matchesCategory && matchesType;
   });
+
+  const categories = [...new Set(documents.map((doc: any) => doc.category).filter(Boolean))];
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case "document": return <FileText className="h-4 w-4" />;
-      case "database": return <Database className="h-4 w-4" />;
-      case "faq": return <MessageCircle className="h-4 w-4" />;
-      case "policy": return <BookOpen className="h-4 w-4" />;
+      case "text": return <FileText className="h-4 w-4" />;
+      case "url": return <Link className="h-4 w-4" />;
+      case "file": return <Upload className="h-4 w-4" />;
       default: return <FileText className="h-4 w-4" />;
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active": return "bg-green-500/10 text-green-600 border-green-500/20";
-      case "draft": return "bg-yellow-500/10 text-yellow-600 border-yellow-500/20";
-      case "archived": return "bg-gray-500/10 text-gray-600 border-gray-500/20";
-      default: return "bg-gray-500/10 text-gray-600 border-gray-500/20";
+  const handleCreateDocument = async () => {
+    try {
+      setCreating(true);
+
+      const payload = {
+        name: formData.name,
+        type: newItemType,
+        description: formData.description,
+        content: newItemType === 'text' ? formData.content : undefined,
+        url: newItemType === 'url' ? formData.url : undefined,
+        category: formData.category,
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        isGlobal: formData.isGlobal,
+      };
+
+      const response = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create document');
+      }
+
+      toast.success('Knowledge document created successfully');
+      setShowCreateDialog(false);
+      setFormData({
+        name: "",
+        description: "",
+        content: "",
+        url: "",
+        category: "",
+        tags: "",
+        isGlobal: false,
+      });
+      mutate();
+    } catch (error) {
+      toast.error('Failed to create document');
+      console.error('Error creating document:', error);
+    } finally {
+      setCreating(false);
     }
   };
 
-  const getTrainingStatusColor = (status: string) => {
-    switch (status) {
-      case "trained": return "bg-green-500/10 text-green-600";
-      case "training": return "bg-blue-500/10 text-blue-600";
-      case "pending": return "bg-yellow-500/10 text-yellow-600";
-      case "failed": return "bg-red-500/10 text-red-600";
-      default: return "bg-gray-500/10 text-gray-600";
+  const handleDeleteDocument = async () => {
+    if (!documentToDelete) return;
+
+    try {
+      setDeleting(true);
+      const response = await fetch(`/api/knowledge/${documentToDelete}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete document');
+      }
+
+      toast.success('Document deleted successfully');
+      setDeleteDialogOpen(false);
+      setDocumentToDelete(null);
+      mutate();
+    } catch (error) {
+      toast.error('Failed to delete document');
+      console.error('Error deleting document:', error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDownload = async (id: string) => {
+    try {
+      const response = await fetch(`/api/knowledge/${id}/download`);
+
+      if (!response.ok) {
+        throw new Error('Failed to download document');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = response.headers.get('content-disposition')?.split('filename=')[1] || 'document.txt';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Document downloaded successfully');
+    } catch (error) {
+      toast.error('Failed to download document');
+      console.error('Error downloading document:', error);
     }
   };
 
@@ -207,58 +241,153 @@ export default function KnowledgePage() {
                     Manage your AI training data and knowledge resources
                   </p>
                 </div>
+                <div className="gap-2 flex">
+                  <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Knowledge
+                      </Button>
 
-                <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Knowledge
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>Create New Knowledge Item</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="item-type">Type</Label>
-                        <Select value={newItemType} onValueChange={setNewItemType}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="document">Document</SelectItem>
-                            <SelectItem value="database">Database</SelectItem>
-                            <SelectItem value="faq">FAQ</SelectItem>
-                            <SelectItem value="policy">Policy</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Create New Knowledge Item</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="item-type">Type</Label>
+                            <Select value={newItemType} onValueChange={setNewItemType}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="text">Text Content</SelectItem>
+                                <SelectItem value="url">Website URL</SelectItem>
+                                <SelectItem value="file">Upload File</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="title">Title</Label>
-                        <Input id="title" placeholder="Enter knowledge item title" />
-                      </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="name">Name</Label>
+                            <Input
+                              id="name"
+                              placeholder="Enter document name"
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            />
+                          </div>
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea id="description" placeholder="Brief description of the knowledge item" />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            placeholder="Brief description of the knowledge item"
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            rows={2}
+                          />
+                        </div>
 
-                      <div className="flex items-center space-x-2">
-                        <Switch id="public" />
-                        <Label htmlFor="public">Make publicly accessible</Label>
-                      </div>
+                        {newItemType === 'text' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="content">Content</Label>
+                            <Textarea
+                              id="content"
+                              placeholder="Enter the text content..."
+                              value={formData.content}
+                              onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                              rows={6}
+                            />
+                          </div>
+                        )}
 
-                      <div className="flex gap-2 pt-4">
-                        <Button className="flex-1">Create Item</Button>
-                        <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                          Cancel
-                        </Button>
+                        {newItemType === 'url' && (
+                          <div className="space-y-2">
+                            <Label htmlFor="url">Website URL</Label>
+                            <Input
+                              id="url"
+                              placeholder="https://example.com"
+                              value={formData.url}
+                              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                            />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="category">Category (Optional)</Label>
+                            <Input
+                              id="category"
+                              placeholder="e.g., Customer Service"
+                              value={formData.category}
+                              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="tags">Tags (Optional)</Label>
+                            <Input
+                              id="tags"
+                              placeholder="tag1, tag2, tag3"
+                              value={formData.tags}
+                              onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="global"
+                            checked={formData.isGlobal}
+                            onCheckedChange={(checked) => setFormData({ ...formData, isGlobal: checked })}
+                          />
+                          <Label htmlFor="global">Make available to all agents by default</Label>
+                        </div>
+
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            onClick={handleCreateDocument}
+                            disabled={creating || !formData.name || (newItemType === 'text' && !formData.content) || (newItemType === 'url' && !formData.url)}
+                            className="flex-1"
+                          >
+                            {creating ? "Creating..." : "Create Item"}
+                          </Button>
+                          <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                            Cancel
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const response = await fetch('/api/knowledge/sync', {
+                          method: 'POST',
+                        });
+
+                        if (response.ok) {
+                          const result = await response.json();
+                          toast.success(`Synced ${result.result.totalSynced} documents to ${result.result.agentsSynced} agents`);
+                          mutate(); // Refresh the data
+                        } else {
+                          throw new Error('Sync failed');
+                        }
+                      } catch (error) {
+                        toast.error('Failed to sync global documents');
+                      }
+                    }}
+                    className="gap-2"
+                  >
+                    <Brain className="h-4 w-4" />
+                    Sync Global Docs
+                  </Button>
+                </div>
               </div>
 
               {/* Stats Cards */}
@@ -279,7 +408,7 @@ export default function KnowledgePage() {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">Active Items</p>
+                        <p className="text-sm font-medium text-muted-foreground">AI Ready</p>
                         <p className="text-2xl font-bold">{stats.active_items}</p>
                       </div>
                       <CheckCircle className="h-8 w-8 text-green-500" />
@@ -291,10 +420,10 @@ export default function KnowledgePage() {
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-muted-foreground">AI Trained</p>
-                        <p className="text-2xl font-bold">{stats.trained_items}</p>
+                        <p className="text-sm font-medium text-muted-foreground">Global Items</p>
+                        <p className="text-2xl font-bold">{stats.global_items}</p>
                       </div>
-                      <Brain className="h-8 w-8 text-purple-500" />
+                      <Globe className="h-8 w-8 text-purple-500" />
                     </div>
                   </CardContent>
                 </Card>
@@ -318,8 +447,8 @@ export default function KnowledgePage() {
                 <TabsList>
                   <TabsTrigger value="all">All Knowledge</TabsTrigger>
                   <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="faqs">FAQs</TabsTrigger>
-                  <TabsTrigger value="training">AI Training</TabsTrigger>
+                  <TabsTrigger value="urls">URLs</TabsTrigger>
+                  <TabsTrigger value="global">Global</TabsTrigger>
                 </TabsList>
 
                 {/* Filters */}
@@ -334,105 +463,107 @@ export default function KnowledgePage() {
                     />
                   </div>
 
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="Customer Service">Customer Service</SelectItem>
-                      <SelectItem value="Products">Products</SelectItem>
-                      <SelectItem value="Support">Support</SelectItem>
-                      <SelectItem value="Internal">Internal</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {categories.length > 0 && (
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.map((category) => (
+                          <SelectItem key={category} value={category}>{category}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
 
-                  {/* <Select value={selectedType} onValueChange={setSelectedType}>
+                  <Select value={selectedType} onValueChange={setSelectedType}>
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="document">Document</SelectItem>
-                      <SelectItem value="database">Database</SelectItem>
-                      <SelectItem value="faq">FAQ</SelectItem>
-                      <SelectItem value="policy">Policy</SelectItem>
+                      <SelectItem value="text">Text</SelectItem>
+                      <SelectItem value="url">URL</SelectItem>
+                      <SelectItem value="file">File</SelectItem>
                     </SelectContent>
-                  </Select> */}
-
-                  {/* <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-                    <SelectTrigger className="w-[120px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="archived">Archived</SelectItem>
-                    </SelectContent>
-                  </Select> */}
+                  </Select>
                 </div>
               </div>
 
               <TabsContent value="all" className="space-y-4">
                 <div className="grid gap-4">
-                  {filteredItems.map((item) => (
-                    <Card key={item.id} className="hover:shadow-md transition-shadow">
+                  {filteredDocuments.map((doc: any) => (
+                    <Card key={doc._id} className="hover:shadow-md transition-shadow">
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between">
                           <div className="flex-1 space-y-3">
                             <div className="flex items-start gap-3">
                               <div className="p-2 bg-muted rounded-lg">
-                                {getTypeIcon(item.type)}
+                                {getTypeIcon(doc.type)}
                               </div>
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-1">
-                                  <h3 className="font-semibold text-lg">{item.title}</h3>
-                                  {item.visibility === "private" && <Lock className="h-4 w-4 text-muted-foreground" />}
-                                  <Badge variant="outline" className={getStatusColor(item.status)}>
-                                    {item.status}
-                                  </Badge>
+                                  <h3 className="font-semibold text-lg">{doc.name}</h3>
+                                  {doc.isGlobal && <Globe className="h-4 w-4 text-blue-500" />}
+                                  {doc.elevenLabsDocumentId ? (
+                                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20">
+                                      AI Ready
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                                      Processing
+                                    </Badge>
+                                  )}
                                 </div>
-                                <p className="text-muted-foreground text-sm mb-2">{item.description}</p>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{item.content_preview}</p>
+                                {doc.description && (
+                                  <p className="text-muted-foreground text-sm mb-2">{doc.description}</p>
+                                )}
+                                {doc.type === 'text' && doc.content && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">
+                                    {doc.content.substring(0, 150)}...
+                                  </p>
+                                )}
+                                {doc.type === 'url' && (
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <ExternalLink className="h-3 w-3" />
+                                    <a href={doc.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
+                                      {doc.url}
+                                    </a>
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
-                              {item.tags.map((tag) => (
-                                <Badge key={tag} variant="secondary" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
+                            {doc.tags && doc.tags.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {doc.tags.map((tag: string) => (
+                                  <Badge key={tag} variant="secondary" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
 
                             <div className="flex items-center justify-between text-sm text-muted-foreground">
                               <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-1">
-                                  <User className="h-3 w-3" />
-                                  {item.created_by}
-                                </div>
-                                <div className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  {new Date(item.last_updated).toLocaleDateString()}
+                                  {new Date(doc.uploadedAt).toLocaleDateString()}
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Activity className="h-3 w-3" />
-                                  {item.usage_count} uses
+                                  {doc.usageCount} downloads
                                 </div>
+                                {doc.category && (
+                                  <div className="flex items-center gap-1">
+                                    <Tag className="h-3 w-3" />
+                                    {doc.category}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                  <Badge className={getTrainingStatusColor(item.ai_training_status)}>
-                                    {item.ai_training_status}
-                                  </Badge>
-                                  <div className="flex items-center gap-1">
-                                    <Star className="h-3 w-3 text-yellow-500" />
-                                    <span className="text-xs">{item.performance_score}%</span>
-                                  </div>
-                                </div>
-
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" size="sm">
@@ -440,20 +571,26 @@ export default function KnowledgePage() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDownload(doc._id)}>
+                                      <Download className="h-4 w-4 mr-2" />
+                                      Download
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/knowledge/${doc._id}`)}>
                                       <Eye className="h-4 w-4 mr-2" />
                                       View Details
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => router.push(`/dashboard/knowledge/${doc._id}/edit`)}>
                                       <Edit className="h-4 w-4 mr-2" />
                                       Edit
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem>
-                                      <Download className="h-4 w-4 mr-2" />
-                                      Export
-                                    </DropdownMenuItem>
                                     <Separator />
-                                    <DropdownMenuItem className="text-destructive">
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        setDocumentToDelete(doc._id);
+                                        setDeleteDialogOpen(true);
+                                      }}
+                                    >
                                       <Trash2 className="h-4 w-4 mr-2" />
                                       Delete
                                     </DropdownMenuItem>
@@ -468,50 +605,205 @@ export default function KnowledgePage() {
                   ))}
                 </div>
 
-                {filteredItems.length === 0 && (
+                {filteredDocuments.length === 0 && !error && (
                   <Card>
                     <CardContent className="p-12 text-center">
                       <Database className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No knowledge items found</h3>
+                      <h3 className="text-lg font-medium mb-2">
+                        {searchTerm || selectedCategory !== 'all' || selectedType !== 'all'
+                          ? 'No matching documents found'
+                          : 'No knowledge documents yet'
+                        }
+                      </h3>
                       <p className="text-muted-foreground mb-4">
-                        {searchTerm ? "Try adjusting your search terms or filters" : "Get started by adding your first knowledge item"}
+                        {searchTerm || selectedCategory !== 'all' || selectedType !== 'all'
+                          ? "Try adjusting your search terms or filters"
+                          : "Get started by adding your first knowledge document"
+                        }
                       </p>
                       <Button onClick={() => setShowCreateDialog(true)}>
                         <Plus className="h-4 w-4 mr-2" />
-                        Add Knowledge Item
+                        Add Knowledge Document
+                      </Button>
+
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Existing Knowledge Base */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium">Available Knowledge Documents</h4>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push('/dashboard/knowledge')}
+                      className="gap-2"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Manage Knowledge Base
+                    </Button>
+                  </div>
+
+                  <div className="text-sm text-muted-foreground mb-3">
+                    Global knowledge documents are automatically included. You can also add specific documents for this agent.
+                  </div>
+
+                  {existingKnowledge.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium text-green-600">Global Documents (Auto-included)</h5>
+                      <div className="grid gap-2">
+                        {existingKnowledge.filter(doc => doc.isGlobal).map((doc: any) => (
+                          <div key={doc._id} className="flex items-center gap-2 p-2 border rounded bg-green-50 dark:bg-green-950/20">
+                            {doc.type === 'text' && <FileText className="h-4 w-4 text-green-600" />}
+                            {doc.type === 'url' && <Link className="h-4 w-4 text-green-600" />}
+                            {doc.type === 'file' && <Upload className="h-4 w-4 text-green-600" />}
+                            <span className="text-sm">{doc.name}</span>
+                            <Globe className="h-3 w-3 text-green-600 ml-auto" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+                {error && (
+                  <Card className="border-destructive">
+                    <CardContent className="p-12 text-center">
+                      <h3 className="text-lg font-medium mb-2 text-destructive">Error Loading Documents</h3>
+                      <p className="text-muted-foreground mb-4">Failed to load knowledge documents</p>
+                      <Button variant="outline" onClick={() => mutate()}>
+                        Retry
                       </Button>
                     </CardContent>
                   </Card>
                 )}
               </TabsContent>
 
-              <TabsContent value="documents">
-                <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Documents View</h3>
-                  <p className="text-muted-foreground">Document-specific view coming soon</p>
+              <TabsContent value="documents" className="space-y-4">
+                <div className="grid gap-4">
+                  {filteredDocuments.filter((doc: any) => doc.type === 'text' || doc.type === 'file').map((doc: any) => (
+                    <Card key={doc._id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-muted rounded-lg">
+                                {getTypeIcon(doc.type)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">{doc.name}</h3>
+                                  {doc.isGlobal && <Globe className="h-4 w-4 text-blue-500" />}
+                                </div>
+                                {doc.description && (
+                                  <p className="text-muted-foreground text-sm mb-2">{doc.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </TabsContent>
 
-              <TabsContent value="faqs">
-                <div className="text-center py-12">
-                  <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">FAQs View</h3>
-                  <p className="text-muted-foreground">FAQ management view coming soon</p>
+              <TabsContent value="urls" className="space-y-4">
+                <div className="grid gap-4">
+                  {filteredDocuments.filter((doc: any) => doc.type === 'url').map((doc: any) => (
+                    <Card key={doc._id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-muted rounded-lg">
+                                <Link className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">{doc.name}</h3>
+                                  {doc.isGlobal && <Globe className="h-4 w-4 text-blue-500" />}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                  <ExternalLink className="h-3 w-3" />
+                                  <a href={doc.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary">
+                                    {doc.url}
+                                  </a>
+                                </div>
+                                {doc.description && (
+                                  <p className="text-muted-foreground text-sm">{doc.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </TabsContent>
 
-              <TabsContent value="training">
-                <div className="text-center py-12">
-                  <Brain className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">AI Training View</h3>
-                  <p className="text-muted-foreground">AI training management coming soon</p>
+              <TabsContent value="global" className="space-y-4">
+                <div className="grid gap-4">
+                  {filteredDocuments.filter((doc: any) => doc.isGlobal).map((doc: any) => (
+                    <Card key={doc._id} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <div className="p-2 bg-muted rounded-lg">
+                                {getTypeIcon(doc.type)}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">{doc.name}</h3>
+                                  <Globe className="h-4 w-4 text-blue-500" />
+                                  <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20">
+                                    Global
+                                  </Badge>
+                                </div>
+                                {doc.description && (
+                                  <p className="text-muted-foreground text-sm">{doc.description}</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               </TabsContent>
             </Tabs>
           </div>
         </div>
       </main>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this knowledge document. This action cannot be undone.
+              Any agents using this document will lose access to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDocument}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Document"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

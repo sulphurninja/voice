@@ -17,7 +17,13 @@ import {
   Volume2,
   Pencil,
   Trash2,
-  MoreHorizontal
+  MoreHorizontal,
+  BookOpen,
+  Wrench,
+  Brain,
+  Globe,
+  Thermometer,
+  Timer
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, formatDistanceToNow } from "date-fns";
@@ -32,6 +38,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Agent = {
   agent_id: string;
@@ -42,6 +54,18 @@ type Agent = {
   voiceName: string;
   usage_minutes: number;
   last_called_at: string | null;
+  template_id?: string;
+  template_name?: string;
+  llm_model: string;
+  temperature: number;
+  language: string;
+  max_duration_seconds: number;
+  knowledge_documents: Array<{
+    document_id: string;
+    name: string;
+    type: 'file' | 'url' | 'text';
+  }>;
+  tools: string[];
   conversation_config: {
     first_message: string;
     system_prompt: string;
@@ -91,15 +115,27 @@ export default function AgentsPage() {
         throw new Error("Failed to delete agent");
       }
 
-      // Remove the deleted agent from the state
       setAgents(prev => prev.filter(agent => agent.agent_id !== agentId));
       setAgentToDelete(null);
     } catch (err: any) {
       console.error("Error deleting agent:", err);
-      // Handle error state/notification in a real app
     } finally {
       setDeletingAgent(false);
     }
+  };
+
+  const getLanguageName = (code: string) => {
+    const languages: { [key: string]: string } = {
+      en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian",
+      pt: "Portuguese", hi: "Hindi", ja: "Japanese", ko: "Korean", zh: "Chinese"
+    };
+    return languages[code] || code?.toUpperCase();
+  };
+
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   };
 
   // Animation variants
@@ -125,7 +161,7 @@ export default function AgentsPage() {
       <main className="flex-1 h-fit max-h-screen overflow-y-auto bg-background">
         <DashboardHeader />
 
-        <div className=" mx-auto px-4 sm:px-6 py-8">
+        <div className="mx-auto px-4 sm:px-6 py-8">
           <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold">Voice Agents</h1>
@@ -141,6 +177,7 @@ export default function AgentsPage() {
               New Agent
             </Button>
           </div>
+
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
@@ -220,7 +257,14 @@ export default function AgentsPage() {
                   )}>
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-start">
-                        <CardTitle className="text-xl">{agent.name}</CardTitle>
+                        <div className="flex-1">
+                          <CardTitle className="text-xl">{agent.name}</CardTitle>
+                          {agent.template_name && (
+                            <Badge variant="secondary" className="mt-1 text-xs">
+                              {agent.template_name}
+                            </Badge>
+                          )}
+                        </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -258,32 +302,96 @@ export default function AgentsPage() {
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                           <Volume2 className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">Voice: {agent.voiceName.slice(0, 18)}...</p>
-                          {agent.disabled && (
-                            <Badge variant="outline" className="text-muted-foreground border-muted-foreground">
-                              Disabled
+                        <div className="flex-1">
+                          <p className="text-sm font-medium">Voice: {agent.voiceName?.slice(0, 18)}...</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {agent.disabled && (
+                              <Badge variant="outline" className="text-muted-foreground border-muted-foreground text-xs">
+                                Disabled
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                              <Globe className="h-3 w-3 mr-1" />
+                              {getLanguageName(agent.language)}
                             </Badge>
-                          )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="space-y-4 text-sm ml-2">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">
+                      {/* Enhanced Stats */}
+                      <div className="space-y-3 text-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Last used</span>
+                          </div>
+                          <span className="text-xs">
                             {agent.last_called_at
-                              ? `Last used ${formatDistanceToNow(new Date(agent.last_called_at))} ago`
-                              : "Never used"}
+                              ? formatDistanceToNow(new Date(agent.last_called_at)) + " ago"
+                              : "Never"}
                           </span>
                         </div>
 
-                        {/* <div className="flex items-center gap-2">
-                          <BarChart className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-muted-foreground">
-                            {agent.usage_minutes.toFixed(1)} minutes used
-                          </span>
-                        </div> */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Model</span>
+                          </div>
+                          <span className="text-xs">{agent.llm_model}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Timer className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-muted-foreground">Max duration</span>
+                          </div>
+                          <span className="text-xs">{formatDuration(agent.max_duration_seconds)}</span>
+                        </div>
+
+                        {/* Knowledge and Tools indicators */}
+                        <div className="flex items-center gap-4 pt-2 border-t">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1">
+                                  <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-xs">{agent.knowledge_documents?.length || 0}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Knowledge documents</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1">
+                                  <Wrench className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-xs">{agent.tools?.length || 0}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Available tools</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-1">
+                                  <Thermometer className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-xs">{agent.temperature}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Response creativity</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
                       </div>
                     </CardContent>
 
@@ -314,6 +422,7 @@ export default function AgentsPage() {
           )}
         </div>
       </main>
+
       <AlertDialog open={!!agentToDelete} onOpenChange={(open) => !open && setAgentToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

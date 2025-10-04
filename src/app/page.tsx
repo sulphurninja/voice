@@ -169,7 +169,7 @@ export default function Home() {
                   <span>Get Started</span>
                   <Sparkles className="h-4 w-4 ml-1" />
                 </Button>
-              </Link>
+              </Link>d
             </motion.div>
 
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>

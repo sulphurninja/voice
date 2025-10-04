@@ -439,6 +439,49 @@ export default function AgentDetailPage({ params }: { params: { id: string } }) 
 
                 <Card>
                   <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="h-5 w-5 text-primary" />
+                      Tools & Capabilities
+                    </CardTitle>
+                    <CardDescription>Tools available to this agent during conversations</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* System Tools */}
+                    <div>
+                      <h3 className="text-sm font-medium mb-2">System Tools (Always Active)</h3>
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-sm">End Call - Automatically ends calls when appropriate</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* User Tools */}
+                    {agent.tools && agent.tools.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Additional Tools</h3>
+                        <div className="space-y-2">
+                          {agent.tools.map((tool: string) => (
+                            <div key={tool} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
+                              <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+                              <span className="text-sm capitalize">{tool}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(!agent.tools || agent.tools.length === 0) && (
+                      <div>
+                        <h3 className="text-sm font-medium mb-2">Additional Tools</h3>
+                        <p className="text-sm text-muted-foreground italic">No additional tools configured</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-destructive">
                       <AlertTriangle className="h-5 w-5" />
                       Danger Zone

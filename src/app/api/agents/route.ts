@@ -4,6 +4,9 @@ import Agent from "@/models/agentModel";
 import { getUserFromRequest } from "@/lib/jwt";
 import { createAgent } from "@/lib/elevenLabs";
 import { checkAgentCreationLimit } from "@/lib/plan-limits";
+import KnowledgeDocument from "@/models/knowledgeModel";
+
+const KEY = process.env.ELEVENLABS_API_KEY!;
 
 /* ───────────────────────── GET ───────────────────────── */
 
@@ -20,7 +23,6 @@ export async function GET(request: NextRequest) {
       userId: typeof userData === "object" ? userData.userId : userData,
     });
 
-    /** What the dashboard needs */
     const formatted = agents.map((a) => ({
       _id: a._id,
       agent_id: a.agentId,
@@ -31,10 +33,15 @@ export async function GET(request: NextRequest) {
       voiceName: a.voiceName,
       usage_minutes: a.usageMinutes,
       last_called_at: a.lastCalledAt,
+      template_id: a.templateId,
+      template_name: a.templateName,
+      llm_model: a.llmModel,
+      temperature: a.temperature,
+      language: a.language,
+      max_duration_seconds: a.maxDurationSeconds,
+      knowledge_documents: a.knowledgeDocuments,
+      tools: a.tools,
       conversation_config: {
-        // keep the *flat* shape for the frontend;
-        // the helper will nest them correctly when it
-        // hits ElevenLabs later.
         first_message: a.firstMessage,
         system_prompt: a.systemPrompt,
         enable_summary: true,
@@ -53,44 +60,226 @@ export async function GET(request: NextRequest) {
 
 /* ───────────────────────── POST ───────────────────────── */
 
+
 export async function POST(request: NextRequest) {
   try {
     const userData = await getUserFromRequest(request);
     if (!userData) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
-    // Check if user has reached agent limit
+
     const limitCheck = await checkAgentCreationLimit(request);
     if (limitCheck) {
-      return limitCheck; // Returns a 403 response if limit reached
+      return limitCheck;
     }
 
-    /* what the UI sent */
     const body = await request.json();
+    console.log("Received agent creation request:", JSON.stringify(body, null, 2));
 
-    /* map into the flavour that `createAgent()` expects                *
-     * NOTE:  we send `first_message` & `system_prompt` at the top      *
-     *        level (or inside `conversation_config`) – the helper      *
-     *        will transform them into the deeper                       *
-     *        conversation_config.agent.prompt structure when it calls  *
-     *        the ElevenLabs endpoint.                                  */
+    const userId = typeof userData === "object" ? userData.userId : userData;
+
+    await connectDB();
+
+    // Get existing global knowledge documents
+    const globalDocs = await KnowledgeDocument.find({ userId, isGlobal: true });
+    let processedKnowledgeDocuments = globalDocs.map(doc => ({
+      document_id: doc.elevenLabsDocumentId,
+      name: doc.name,
+      type: doc.type,
+      content: doc.content,
+      url: doc.url,
+      created_at: doc.uploadedAt
+    })).filter(doc => doc.document_id); // Only include docs that have ElevenLabs ID
+
+    console.log("Found global knowledge documents:", globalDocs.length);
+
+    // Process any additional knowledge documents provided in the request
+    if (body.knowledge_documents && body.knowledge_documents.length > 0) {
+      console.log("Processing knowledge documents:", body.knowledge_documents.length);
+
+      const KEY = process.env.ELEVENLABS_API_KEY!;
+
+      for (const doc of body.knowledge_documents) {
+        try {
+          // Skip empty documents
+          if (!doc.content && !doc.url && !doc.file) {
+            console.log("Skipping empty document");
+            continue;
+          }
+
+          // Create FormData for uploading to ElevenLabs
+          const formData = new FormData();
+          let elevenLabsDocumentId = null;
+
+          if (doc.type === 'text' && doc.content) {
+            // For text content, create a temporary file
+            const tempFile = new File([doc.content], "content.txt", { type: "text/plain" });
+            formData.append("file", tempFile);
+            formData.append("name", doc.name || "Text Document");
+          } else if (doc.type === 'url' && doc.url) {
+            formData.append("url", doc.url);
+            formData.append("name", doc.name || "URL Document");
+          } else if (doc.type === 'file' && doc.file) {
+            // File type requires actual file upload - would need proper file handling
+            continue;
+          } else {
+            console.log("Skipping invalid document:", doc);
+            continue;
+          }
+
+          // Upload to ElevenLabs knowledge base
+          try {
+            const kbRes = await fetch("https://api.elevenlabs.io/v1/convai/knowledge-base", {
+              method: "POST",
+              headers: { "xi-api-key": KEY },
+              body: formData
+            });
+
+            if (kbRes.ok) {
+              const kbData = await kbRes.json();
+              elevenLabsDocumentId = kbData.id || kbData.document_id;
+              console.log("Knowledge document uploaded to ElevenLabs:", { id: elevenLabsDocumentId, name: doc.name });
+            } else {
+              const errorText = await kbRes.text();
+              console.error("Failed to upload knowledge document to ElevenLabs:", errorText);
+              // Continue without ElevenLabs ID - we can still save to our DB
+            }
+          } catch (elevenLabsError) {
+            console.error("ElevenLabs upload error:", elevenLabsError);
+            // Continue without ElevenLabs ID
+          }
+
+          // Create the document data for the agent
+          const documentData = {
+            document_id: elevenLabsDocumentId,
+            name: doc.name || 'Document',
+            type: doc.type,
+            content: doc.type === 'text' ? doc.content : undefined,
+            url: doc.type === 'url' ? doc.url : undefined,
+            created_at: new Date()
+          };
+
+          // Add to processed documents (even if ElevenLabs upload failed)
+          processedKnowledgeDocuments.push(documentData);
+
+          // Save to our knowledge base database
+          try {
+            const knowledgeDoc = new KnowledgeDocument({
+              userId,
+              name: documentData.name,
+              type: documentData.type,
+              content: documentData.content,
+              url: documentData.url,
+              elevenLabsDocumentId: elevenLabsDocumentId, // Can be null if ElevenLabs upload failed
+              category: doc.category || '',
+              tags: doc.tags || [],
+              description: doc.description || '',
+              isGlobal: false, // New documents are not global by default
+              agentIds: [], // Will be populated after agent is created
+              uploadedAt: new Date(),
+              lastModified: new Date(),
+              usageCount: 0,
+            });
+
+            const savedDoc = await knowledgeDoc.save();
+            console.log("Knowledge document saved to database:", { id: savedDoc._id, name: savedDoc.name });
+          } catch (dbError) {
+            console.error("Error saving knowledge document to database:", dbError);
+            // Continue with agent creation even if DB save fails
+          }
+
+        } catch (error) {
+          console.error("Error processing document:", error);
+          // Continue with other documents
+        }
+      }
+    }
+
+    console.log("Total processed knowledge documents:", processedKnowledgeDocuments.length);
+
+
+    console.log("Total processed knowledge documents:", processedKnowledgeDocuments.length);
+
+    // Import system tools
+    const { getDefaultSystemTools } = await import('@/lib/systemTools');
+
+    // Create the agent data with system tools
     const agentData = {
-      userId: typeof userData === "object" ? userData.userId : userData,
+      userId,
       name: body.name,
-      description: body.description ?? "",
-      voice_id: body.voice_id ?? "", // Check in conversation_config.tts if not at top level
-      first_message: body.first_message ?? body.conversation_config?.first_message ?? "",
-      system_prompt: body.system_prompt ?? body.conversation_config?.system_prompt ?? "",
+      description: body.description || "",
+      voice_id: body.voice_id,
+      first_message: body.first_message,
+      system_prompt: body.system_prompt,
+      template_id: body.template_id,
+      template_name: body.template_id ? getTemplateName(body.template_id) : null,
+      llm_model: body.llm_model || "gpt-4o-mini",
+      temperature: body.temperature || 0.3,
+      language: body.language || "en",
+      max_duration_seconds: body.max_duration_seconds || 1800,
+      knowledge_documents: processedKnowledgeDocuments,
+      tools: body.tools || [], // User tools
+      systemTools: getDefaultSystemTools() // System tools
     };
+    const result = await createAgent(agentData);
+    // After the agent is successfully created, add this:
+    try {
+      const { syncGlobalKnowledgeToAgent } = await import('@/lib/knowledgeSync');
+      await syncGlobalKnowledgeToAgent(result.agent_id, userId);
+      console.log('Global documents synced to new agent');
+    } catch (syncError) {
+      console.error('Error syncing global docs to new agent:', syncError);
+    }
 
-    const agent = await createAgent(agentData);
+    // After agent is created, update knowledge documents to reference this agent
+    try {
+      const createdAgent = await Agent.findOne({ agentId: result.agent_id });
+      if (createdAgent) {
+        // Update knowledge documents that were created for this agent to include agent reference
+        await KnowledgeDocument.updateMany(
+          {
+            userId,
+            elevenLabsDocumentId: { $in: processedKnowledgeDocuments.map(doc => doc.document_id).filter(Boolean) },
+            agentIds: { $ne: createdAgent._id } // Don't duplicate if already exists
+          },
+          { $push: { agentIds: createdAgent._id } }
+        );
+        console.log("Updated knowledge documents with agent reference");
+      }
+    } catch (updateError) {
+      console.error("Error updating knowledge documents with agent reference:", updateError);
+      // Don't fail the agent creation for this
+    }
 
-    return NextResponse.json(agent);
+    return NextResponse.json({
+      agent_id: result.agent_id,
+      name: result.name,
+      knowledge_documents: processedKnowledgeDocuments,
+      message: result.message
+    });
+
   } catch (err: any) {
     console.error("Error creating agent:", err);
+    console.error("Error stack:", err.stack);
     return NextResponse.json(
       { message: "Failed to create agent", error: err.message },
       { status: 500 },
     );
   }
+}
+
+// ... rest of the existing code ...
+
+
+// Helper function to get template name from ID
+function getTemplateName(templateId: string) {
+  const templateMap: { [key: string]: string } = {
+    "sales-assistant": "Sales Assistant",
+    "customer-support": "Customer Support",
+    "appointment-scheduler": "Appointment Scheduler",
+    "lead-qualification": "Lead Qualification",
+    "followup-scheduler": "Followup Scheduler",
+    "booking-agent": "Booking Agent"
+  };
+  return templateMap[templateId] || null;
 }

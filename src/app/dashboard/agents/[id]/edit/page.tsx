@@ -71,6 +71,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 
 const agentSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -663,11 +664,11 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                 <FormItem>
                                   <FormLabel>First Message</FormLabel>
                                   <FormControl>
-                                    <Textarea
+                                    <VariableTextarea
+                                      placeholder="Hello {contact_name}! I'm calling from [Your Company]. How can I help you today?"
                                       rows={2}
-                                      placeholder="The greeting your agent will use when starting conversations"
-                                      className="resize-none"
                                       {...field}
+                                      className="resize-none border-muted"
                                     />
                                   </FormControl>
                                   <FormDescription>
@@ -685,11 +686,12 @@ export default function EditAgentPage({ params }: { params: { id: string } }) {
                                 <FormItem>
                                   <FormLabel>System Prompt</FormLabel>
                                   <FormControl>
-                                    <Textarea
-                                      rows={8}
-                                      placeholder="Detailed instructions that define your agent's personality, knowledge, and how it should respond"
-                                      className="resize-none"
+
+                                    <VariableTextarea
                                       {...field}
+                                      placeholder="You are a friendly AI assistant for [Company]. You're speaking with {contact_name}. Your goal is to..."
+                                      rows={8}
+                                      className="resize-none border-muted"
                                     />
                                   </FormControl>
                                   <FormDescription>

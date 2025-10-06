@@ -217,7 +217,7 @@ export default function LoginPage() {
             }}
             style={{ backgroundSize: '200%' }}
           >
-            Welcome to Wow Voice
+            Welcome to Xseize
           </motion.h1>
           <p className="text-muted-foreground mt-2">Experience the future of voice AI technology</p>
         </motion.div>

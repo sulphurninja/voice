@@ -7,7 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Wow Voice | Build Enterprise Grade Custom AI Agents',
+  title: 'Xseize | Build Enterprise Grade Custom AI Agents',
   description: 'Get started with building custom Conversational AI Agents powered by Wow\'s No/Low Code Builder',
   openGraph: {
     type: 'website',

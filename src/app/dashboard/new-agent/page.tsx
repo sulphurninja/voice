@@ -88,6 +88,7 @@ import {
 import { BuiltInTools } from "@/components/agent/BuiltInTools";
 import { AdvancedSettings } from "@/components/agent/AdvancedSettings";
 import { VoiceConfiguration } from "@/components/agent/VoiceConfiguration";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 
 const agentSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -853,11 +854,12 @@ export default function NewAgent() {
                                 <FormItem>
                                   <FormLabel>First Message</FormLabel>
                                   <FormControl>
-                                    <Textarea
+                                    <VariableTextarea
+                                      value={field.value}
+                                      onChange={field.onChange}
+                                      placeholder="Hello {contact_name}! I'm calling from [Your Company]. How can I help you today?"
                                       rows={2}
-                                      placeholder="The greeting your agent will use when starting conversations"
                                       className="resize-none border-muted"
-                                      {...field}
                                     />
                                   </FormControl>
                                   <FormDescription>
@@ -875,11 +877,12 @@ export default function NewAgent() {
                                 <FormItem>
                                   <FormLabel>System Prompt</FormLabel>
                                   <FormControl>
-                                    <Textarea
+                                    <VariableTextarea
+                                      value={field.value}
+                                      onChange={field.onChange}
+                                      placeholder="You are a friendly AI assistant for [Company]. You're speaking with {contact_name}. Your goal is to..."
                                       rows={8}
-                                      placeholder="Detailed instructions that define your agent's personality, knowledge, and how it should respond"
                                       className="resize-none border-muted"
-                                      {...field}
                                     />
                                   </FormControl>
                                   <FormDescription>

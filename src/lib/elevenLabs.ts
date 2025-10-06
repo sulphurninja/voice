@@ -741,11 +741,18 @@ export async function initiateCall(
       agent_id: agent.agentId,
       agent_phone_number_id: ELEVENLABS_PHONE_ID,
       to_number: formatted,
+      conversation_initiation_client_data: {
+        type: "conversation_initiation_client_data",
+        dynamic_variables: {
+          contact_name: contactName,
+        }
+      }
     };
 
-    if (customMessage) {
-      callPayload.agent_start_message = customMessage;
-    }
+
+    // if (customMessage) {
+    //   callPayload.agent_start_message = customMessage;
+    // }
 
     console.log("Making call with payload:", callPayload);
 

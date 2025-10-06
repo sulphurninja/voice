@@ -41,7 +41,7 @@ export function ThemeProvider({
   const pathname = usePathname()
 
   // Check if current page is login or register
-  const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/forgot-password" || pathname === "/reset-password" || pathname === '/'
+  const isAuthPage = pathname === "/login" || pathname === "/register" || pathname === "/forgot-password" || pathname === "/reset-password"
 
   useEffect(() => {
     const root = window.document.documentElement

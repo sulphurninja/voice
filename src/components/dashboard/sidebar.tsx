@@ -190,8 +190,8 @@ export function DashboardSidebar() {
 
   const NavItem = ({ item, isBottom = false }: { item: any, isBottom?: boolean }) => {
     const active = pathname === item.href ||
-                  (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
-                  (item.href === '/dashboard/leads' && pathname.startsWith('/dashboard/leads'));
+      (item.href !== '/dashboard' && pathname.startsWith(item.href)) ||
+      (item.href === '/dashboard/leads' && pathname.startsWith('/dashboard/leads'));
 
     if (collapsed) {
       return (
@@ -343,7 +343,7 @@ export function DashboardSidebar() {
             {!collapsed && (
               <div>
                 <span className="font-bold text-lg bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
-                  Wow Voice
+                  Xseize
                 </span>
                 <p className="text-xs text-sidebar-foreground/60">AI Voice Platform</p>
               </div>

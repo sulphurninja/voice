@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { Github, Twitter, Linkedin, Youtube } from "lucide-react";
 import Link from "next/link";
-import {motion} from 'framer-motion'
+import { motion } from 'framer-motion'
 
 export function Footer() {
   return (
@@ -44,7 +44,7 @@ export function Footer() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
-                Wow Voice
+                Xseize
               </motion.span>
             </Link>
             <p className="text-gray-400 p-4 max-w-xl text-center md:text-left">
@@ -80,7 +80,7 @@ export function Footer() {
 
         <div className="flex flex-col md:flex-row justify-between items-center mt-12 pt-8 border-t border-gray-800">
           <p className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} Wow Voice. All rights reserved.
+            © {new Date().getFullYear()} Xseize. All rights reserved.
           </p>
 
           <div className="flex gap-6 mt-4 md:mt-0">

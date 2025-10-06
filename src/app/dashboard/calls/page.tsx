@@ -400,15 +400,21 @@ export default function CallsPage() {
               variants={fadeInUpVariant}
             >
               <Tabs value={callTab} onValueChange={setCallTab} className="w-full">
-                <TabsList className="grid grid-cols-2 mb-6">
-                  <TabsTrigger value="dialer">
-                    <Phone className="h-4 w-4 mr-2" /> Voice Dialer
-                  </TabsTrigger>
-                  <TabsTrigger value="import">
-                    <Upload className="h-4 w-4 mr-2" /> Bulk Import
-                  </TabsTrigger>
-                </TabsList>
-
+                <div className="flex gap-4 justify-between items-">
+                  <TabsList className="grid grid-cols-2 mb-6">
+                    <TabsTrigger value="dialer">
+                      <Phone className="h-4 w-4 mr-2" /> Voice Dialer
+                    </TabsTrigger>
+                    <TabsTrigger value="import">
+                      <Upload className="h-4 w-4 mr-2" /> Bulk Import
+                    </TabsTrigger>
+                  </TabsList>
+                  <Link className="cursor-pointer" href='/dashboard/calls/new'>
+                    <Button>
+                      + New Call
+                    </Button>
+                  </Link>
+                </div>
                 <TabsContent value="dialer">
                   <Card>
                     <CardHeader>

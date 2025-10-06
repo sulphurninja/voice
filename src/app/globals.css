@@ -88,6 +88,21 @@
   --shadow-lg: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 4px 6px 0px hsl(0 0% 0% / 0.06);
   --shadow-xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.06), 1px 8px 10px 0px hsl(0 0% 0% / 0.06);
   --shadow-2xl: 1px 2px 5px 1px hsl(0 0% 0% / 0.15);
+  --xseize-black: #0a0a0a;
+  --xseize-dark: #111111;
+  --xseize-gray-900: #1a1a1a;
+  --xseize-gray-800: #2a2a2a;
+  --xseize-gray-700: #3a3a3a;
+  --xseize-gray-400: #6a6a6a;
+  --xseize-gray-300: #9a9a9a;
+
+  --xseize-blue: #00d4ff;
+  --xseize-purple: #8b5cf6;
+  --xseize-cyan: #06b6d4;
+  --xseize-white: #ffffff;
+
+  --xseize-glow-blue: rgba(0, 212, 255, 0.3);
+  --xseize-glow-purple: rgba(139, 92, 246, 0.3);
 }
 
 .dark {
@@ -189,6 +204,7 @@
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
 }
+
 /* Hide scrollbar for Chrome, Safari, Opera */
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
@@ -196,8 +212,10 @@
 
 /* Hide scrollbar for IE, Edge and Firefox */
 .scrollbar-hidden {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 
@@ -205,6 +223,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

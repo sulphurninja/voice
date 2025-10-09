@@ -119,18 +119,33 @@ export function Footer() {
                 </div>
               </motion.div>
 
-              <motion.span
-                className={`text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r ${
-                  isDark
-                    ? "from-blue-400 to-violet-400"
-                    : "from-blue-600 to-violet-600"
-                }`}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-              >
-                Xseize
-              </motion.span>
+      {/* Subtle grid overlay (like hero) */}
+      <div
+        className={cn(
+          "absolute inset-0 bg-[size:60px_60px] opacity-20 pointer-events-none",
+          isDark
+            ? "bg-[linear-gradient(to_right,rgba(75,85,99,0.2)_1px,transparent_1px),linear-gradient(to_bottom,rgba(75,85,99,0.2)_1px,transparent_1px)]"
+            : "bg-[linear-gradient(to_right,rgba(120,130,145,0.2)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,130,145,0.2)_1px,transparent_1px)]"
+        )}
+      />
+
+      <div className="relative container mx-auto px-6 md:px-12">
+        <div className="flex flex-col md:flex-row justify-between items-center md:items-start gap-12">
+          {/* Brand Section */}
+          <motion.div
+            className="flex flex-col items-center md:items-start text-center md:text-left"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <Link href="/" className="flex items-center gap-3 mb-3">
+              <Image
+                src="/logo.png"
+                alt="Xseize Logo"
+                width={46}
+                height={46}
+                className="rounded-xl shadow-md"
+              />
             </Link>
             <p className={cn("max-w-md", isDark ? "text-gray-400" : "text-gray-600")}>
               Transforming business communications with AI-powered voice agents that sound human.

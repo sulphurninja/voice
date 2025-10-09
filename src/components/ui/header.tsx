@@ -37,19 +37,19 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   {
-    href: "#products",
+    href: "/solution",
     label: "Solutions",
     icon: <Brain className="h-4 w-4" />,
     description: "AI-powered voice solutions"
   },
   {
-    href: "#platform",
+    href: "/platform",
     label: "Platform",
     icon: <BarChart className="h-4 w-4" />,
     description: "Complete voice AI platform"
   },
   {
-    href: "#integrations",
+    href: "/integrations",
     label: "Integrations",
     icon: <Globe className="h-4 w-4" />,
     description: "Connect with your tools"

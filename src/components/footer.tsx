@@ -97,6 +97,47 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
+       <Link href="/" className="flex items-center gap-2 z-10">
+              <motion.div
+                className="relative"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{
+                  duration: 0.5,
+                  type: "spring",
+                  stiffness: 260,
+                  damping: 20,
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <div className="absolute -top-1 -right-1">
+                  <div className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-violet-600"></span>
+                  </div>
+                </div>
+              </motion.div>
+
+      {/* Subtle grid overlay (like hero) */}
+      <div
+        className={cn(
+          "absolute inset-0 bg-[size:60px_60px] opacity-20 pointer-events-none",
+          isDark
+            ? "bg-[linear-gradient(to_right,rgba(75,85,99,0.2)_1px,transparent_1px),linear-gradient(to_bottom,rgba(75,85,99,0.2)_1px,transparent_1px)]"
+            : "bg-[linear-gradient(to_right,rgba(120,130,145,0.2)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,130,145,0.2)_1px,transparent_1px)]"
+        )}
+      />
+
+      <div className="relative container mx-auto px-6 md:px-12">
+        <div className="flex flex-col md:flex-row justify-between items-center md:items-start gap-12">
+          {/* Brand Section */}
+          <motion.div
+            className="flex flex-col items-center md:items-start text-center md:text-left"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
             <Link href="/" className="flex items-center gap-3 mb-3">
               <Image
                 src="/logo.png"

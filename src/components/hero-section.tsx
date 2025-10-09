@@ -161,7 +161,7 @@ export function HeroSection() {
         "relative min-h-screen pt-12 flex items-center overflow-hidden transition-colors duration-300",
         isDark
           ? "bg-gradient-to-br from-gray-950 via-gray-900 to-blue-950"
-          : "bg-gradient-to-br from-gray-50 via-white to-blue-50"
+          : "bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-100"
       )}
     >
       {/* Background Effects */}
@@ -170,8 +170,10 @@ export function HeroSection() {
         <div className={cn(
           "absolute inset-0 bg-[size:60px_60px] opacity-30",
           isDark
-            ? "bg-[linear-gradient(to_right,theme(colors.gray.800)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.gray.800)_1px,transparent_1px)]"
-            : "bg-[linear-gradient(to_right,theme(colors.gray.200)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.gray.200)_1px,transparent_1px)]"
+          ? "bg-[linear-gradient(to_right,rgba(75,85,99,0.3)_1px,transparent_1px),linear-gradient(to_bottom,rgba(75,85,99,0.3)_1px,transparent_1px)]"
+          : "bg-[linear-gradient(to_right,rgba(120,130,145,0.4)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,130,145,0.4)_1px,transparent_1px)]"
+        
+
         )} />
 
         {/* Gradient Orbs */}
@@ -209,8 +211,8 @@ export function HeroSection() {
                 className={cn(
                   "inline-flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm shadow-sm transition-colors",
                   isDark
-                    ? "bg-gradient-to-r from-blue-900/30 to-violet-900/30 border border-blue-800/30"
-                    : "bg-gradient-to-r from-blue-100 to-violet-100 border border-blue-200"
+                  ? "bg-gradient-to-br from-gray-950 via-gray-900 to-blue-950"
+                  : "bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-100"
                 )}
               >
                 <Wand2 className={cn("h-4 w-4", isDark ? "text-blue-400" : "text-blue-600")} />
@@ -291,8 +293,8 @@ export function HeroSection() {
                   className={cn(
                     "py-6 px-8 rounded-2xl text-lg backdrop-blur-sm transition-all hover:scale-105 group border-2",
                     isDark
-                      ? "border-gray-600 text-gray-300 bg-gray-900/50 hover:bg-gray-800"
-                      : "border-gray-300 text-gray-700 bg-white/50 hover:bg-gray-50"
+                        ? "border-blue-500 text-white bg-gradient-to-r from-blue-800/70 via-violet-800/60 to-blue-900/70 hover:from-blue-700 hover:via-violet-700 hover:to-blue-800"
+                        : "border-blue-500 text-white bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-500 hover:from-blue-500 hover:via-cyan-500 hover:to-blue-600"
                   )}
                   onClick={() => setIsPlaying(true)}
                 >
@@ -489,7 +491,7 @@ export function HeroSection() {
               {['Google', 'Microsoft', 'Amazon', 'Salesforce', 'Slack'].map((company, i) => (
                 <motion.div
                   key={company}
-                  className="relative h-8 w-24"
+                  className="relative h-8 w-24 mb-2"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 1.7 + i * 0.1 }}

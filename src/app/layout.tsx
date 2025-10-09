@@ -1,9 +1,9 @@
 import '../app/globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
-import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from '@/contexts/AuthContext';
-import { Footer } from 'react-day-picker';
+import Script from 'next/script';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -44,18 +44,22 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        {/* Load Razorpay checkout script globally */}
+        <Script
+          src="https://checkout.razorpay.com/v1/checkout.js"
+          strategy="beforeInteractive"
+        />
         <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          themes={['light', 'dark']}
-        >
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
           <AuthProvider>
             {children}
             
           </AuthProvider>
-        
-        </ThemeProvider>
+          </ThemeProvider>
       </body>
     </html>
   );

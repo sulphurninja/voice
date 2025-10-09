@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   {
-    href: "/products",
+    href: "/solution",
     label: "Solutions",
     icon: <Brain className="h-4 w-4" />,
     description: "AI-powered voice solutions",
@@ -35,7 +35,7 @@ const navItems = [
     description: "Complete voice AI platform",
   },
   {
-    href: "/integrations",
+    href: "/Integrations",
     label: "Integrations",
     icon: <Globe className="h-4 w-4" />,
     description: "Connect with your tools",
@@ -164,7 +164,7 @@ export function Header() {
               </Button>
             </Link>
 
-            <Link href="/signup">
+            <Link href="/login">
               <Button
                 size="sm"
                 className={cn(

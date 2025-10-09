@@ -47,7 +47,9 @@ export function Integrations() {
         id="integrations"
         ref={ref}
         className={`py-32 relative overflow-hidden transition-colors duration-500 ${
-          isDark ? "bg-[#0a0a0f] text-gray-100" : "bg-gray-50 text-gray-900"
+         isDark
+      ?  "bg-gradient-to-br from-gray-950 via-gray-900 to-blue-950":
+      "bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-100"
         }`}
       >
         {/* Background glow effects */}

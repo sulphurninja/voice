@@ -51,7 +51,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-hidden">
       {/* Premium dark background with subtle patterns */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,212,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,212,255,0.03)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
@@ -66,9 +66,10 @@ export default function Home() {
         <DashboardPreview />
         <Integrations />
         <CTASection />
+         
       </main>
-
-      <Footer />
+ <Footer />
+   
     </div>
   );
 }

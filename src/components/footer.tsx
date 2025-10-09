@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Github, Twitter, Linkedin, Youtube } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useTheme } from "@/components/theme-provider"; // Import useTheme

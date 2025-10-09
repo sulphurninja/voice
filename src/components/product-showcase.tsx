@@ -114,7 +114,7 @@ export function ProductShowcase() {
         "py-32 relative overflow-hidden transition-colors duration-300",
         isDark
           ? "bg-black"
-          : "bg-gradient-to-b from-gray-50 to-white"
+        : "bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-100"
       )}
     >
       {/* Premium background effects */}
@@ -135,8 +135,9 @@ export function ProductShowcase() {
         <div className={cn(
           "absolute inset-0 bg-[size:60px_60px] opacity-20",
           isDark
-            ? "bg-[linear-gradient(to_right,theme(colors.gray.800)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.gray.800)_1px,transparent_1px)]"
-            : "bg-[linear-gradient(to_right,theme(colors.gray.200)_1px,transparent_1px),linear-gradient(to_bottom,theme(colors.gray.200)_1px,transparent_1px)]"
+          ? "bg-[linear-gradient(to_right,rgba(75,85,99,0.3)_1px,transparent_1px),linear-gradient(to_bottom,rgba(75,85,99,0.3)_1px,transparent_1px)]"
+          : "bg-[linear-gradient(to_right,rgba(120,130,145,0.4)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,130,145,0.4)_1px,transparent_1px)]"
+        
         )} />
       </div>
 

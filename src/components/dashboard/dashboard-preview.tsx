@@ -9,6 +9,7 @@ import {
   Layers, Radio, Sparkles, Zap, Cpu, BrainCircuit, Wand2,
   MessageSquare, Server
 } from "lucide-react";
+import { useTheme } from "@/components/theme-provider"; // Import useTheme
 
 // Dashboard tabs for preview with enhanced data
 const dashboardTabs = [
@@ -78,10 +79,21 @@ const FloatingParticles = () => {
 
 // Animated grid background with increased visibility
 const GridBackground = () => {
+  const { theme } = useTheme(); // Access the theme
+  const isDark = theme === "dark"; // Determine if the theme is dark
+
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <div className="h-full w-full bg-[linear-gradient(to_right,rgba(140,140,255,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(140,140,255,0.15)_1px,transparent_1px)] bg-[size:24px_24px]"></div>
-      <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-background to-transparent"></div>
+      <div
+        className={`h-full w-full ${isDark
+          ? "bg-[linear-gradient(to_right,rgba(140,140,255,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(140,140,255,0.15)_1px,transparent_1px)]"
+          : "bg-[linear-gradient(to_right,rgba(120,130,145,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,130,145,0.1)_1px,transparent_1px)]"
+          } bg-[size:24px_24px]`}
+      ></div>
+      <div
+        className={`absolute bottom-0 left-0 right-0 h-1/3 ${isDark ? "bg-gradient-to-t from-black to-transparent" : "bg-gradient-to-t from-white to-transparent"
+          }`}
+      ></div>
     </div>
   );
 };
@@ -193,6 +205,8 @@ const AIConsole = () => {
 };
 
 export function DashboardPreview() {
+  const { theme } = useTheme(); // Access the theme
+  const isDark = theme === "dark"; // Determine if the theme is dark
   const [hoveredFeature, setHoveredFeature] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("analytics");
   const { scrollYProgress } = useScroll();
@@ -264,11 +278,24 @@ export function DashboardPreview() {
   ];
 
   return (
-    <section id="dashboard" className="py-32  relative overflow-hidden" ref={containerRef}>
+    <section
+      id="dashboard"
+      className={`py-32 relative overflow-hidden transition-colors duration-300 ${isDark ?
+        "bg-black" :
+        "bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-200"
+        }`}
+      ref={containerRef}
+    >
       {/* Enhanced background with more vibrant colors */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[100px]" />
-        <div className="absolute bottom-1/3 left-1/4 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[100px]" />
+        <div
+          className={`absolute top-1/3 right-1/4 w-[600px] h-[600px] ${isDark ? "bg-blue-600/20" : "bg-blue-300/10"
+            } rounded-full blur-[100px]`}
+        />
+        <div
+          className={`absolute bottom-1/3 left-1/4 w-[600px] h-[600px] ${isDark ? "bg-purple-600/20" : "bg-purple-300/10"
+            } rounded-full blur-[100px]`}
+        />
         <GridBackground />
         <FloatingParticles />
 
@@ -294,25 +321,29 @@ export function DashboardPreview() {
             viewport={{ once: true }}
           >
             <Sparkles className="h-4 w-4" />
-            <span className="text-sm font-medium">AI-Powered Interface</span>
+            <span className={`text-sm font-medium ${isDark ? "text-white" : "text-black"}`}>AI-Powered Interface</span>
           </motion.div>
 
           <motion.h2
-            className="text-4xl font-bold mb-6 text-white"
+            className={`text-4xl font-bold mb-6 ${isDark ? "text-white" : "text-gray-900"
+              }`}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             viewport={{ once: true }}
           >
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-violet-400">
+            <span
+              className={`bg-clip-text text-transparent bg-gradient-to-r ${isDark ? "from-blue-400 to-violet-400" : "from-blue-600 to-violet-600"
+                }`}
+            >
               Mission Control
-            </span>
-            {" "}
+            </span>{" "}
             <span>For Your Voice AI</span>
           </motion.h2>
 
           <motion.p
-            className="text-xl text-gray-200 leading-relaxed"
+            className={`text-xl leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"
+              }`}
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
@@ -352,14 +383,18 @@ export function DashboardPreview() {
               className="w-full"
               onValueChange={setActiveTab}
             >
-              <TabsList className="bg-black/40 border border-white/20 p-1.5 rounded-xl mb-6 mx-auto flex justify-center max-w-fit backdrop-blur-sm shadow-lg">
+              <TabsList
+                className={`flex justify-center max-w-fit mx-auto mb-6 p-1.5 rounded-xl 
+              backdrop-blur-sm border shadow-lg
+              ${isDark ? "bg-black/30 border-white/20" : "bg-white/30 border-gray-200/30"}`}
+              >
                 {dashboardTabs.map((tab) => (
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
                     className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-violet-600 data-[state=active]:text-white rounded-lg px-5 py-3 text-gray-300"
                   >
-                    <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-2 ${isDark ? "text-white" : "text-black"}`}>
                       {tab.icon}
                       <span>{tab.label}</span>
                     </div>
@@ -441,7 +476,10 @@ export function DashboardPreview() {
             {features.map((feature, index) => (
               <motion.div
                 key={index}
-                className={`bg-gradient-to-r ${feature.bgGradient} backdrop-blur-lg border ${feature.borderColor} p-6 rounded-2xl relative shadow-lg`}
+                className={`relative rounded-2xl p-6 border ${isDark
+                    ? `bg-gray-900/90 border-gray-700/50 text-white`
+                    : `bg-white border-gray-200/50 text-gray-900`
+                  } shadow-lg`}
                 initial={{ opacity: 0, x: 20 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
@@ -450,41 +488,66 @@ export function DashboardPreview() {
                 onMouseLeave={() => setHoveredFeature(null)}
                 whileHover={{
                   scale: 1.03,
-                  boxShadow: `0 0 25px 0 rgba(${feature.color === 'blue' ? '56, 189, 248' :
+                  boxShadow: `0 0 20px 0 rgba(${feature.color === 'blue' ? '56, 189, 248' :
                     feature.color === 'violet' ? '139, 92, 246' :
-                      feature.color === 'indigo' ? '99, 102, 241' : '34, 197, 94'}, 0.3)`
+                      feature.color === 'indigo' ? '99, 102, 241' : '34, 197, 94'}, 0.25)`
                 }}
               >
                 <div className="flex items-start gap-4">
-                  <div className={`rounded-xl bg-${feature.color}-500/30 p-3.5 flex-shrink-0 border border-${feature.color}-500/50 shadow-md shadow-${feature.color}-500/20`}>
+                  <div className={`rounded-xl p-3.5 flex-shrink-0 border ${feature.color === "blue"
+                      ? "border-blue-500/50 bg-blue-500/10"
+                      : feature.color === "violet"
+                        ? "border-violet-500/50 bg-violet-500/10"
+                        : feature.color === "indigo"
+                          ? "border-indigo-500/50 bg-indigo-500/10"
+                          : "border-green-500/50 bg-green-500/10"
+                    } shadow-sm`}>
                     {feature.icon}
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold mb-2 text-white">{feature.title}</h3>
-                    <p className="text-sm text-gray-300 leading-relaxed">{feature.description}</p>
+                    <h3 className={`text-lg font-semibold mb-2`}>
+                      {feature.title}
+                    </h3>
+                    <p className="text-sm leading-relaxed">
+                      {feature.description}
+                    </p>
                   </div>
                 </div>
 
-                {/* Animated accent icon with increased visibility */}
+                {/* Minimal accent icon */}
                 <motion.div
-                  className={`absolute -right-3 -bottom-3 h-10 w-10 rounded-full flex items-center justify-center bg-${feature.color}-500/40 border border-${feature.color}-500/70 backdrop-blur-sm shadow-lg shadow-${feature.color}-500/30`}
+                  className={`absolute -right-3 -bottom-3 h-10 w-10 rounded-full flex items-center justify-center ${feature.color === "blue"
+                      ? "bg-blue-500/20 border-blue-500/50"
+                      : feature.color === "violet"
+                        ? "bg-violet-500/20 border-violet-500/50"
+                        : feature.color === "indigo"
+                          ? "bg-indigo-500/20 border-indigo-500/50"
+                          : "bg-green-500/20 border-green-500/50"
+                    }`}
                   animate={{
-                    scale: [1, 1.1, 1],
-                    rotate: [0, 5, -5, 0]
+                    scale: [1, 1.05, 1],
+                    rotate: [0, 4, -4, 0],
                   }}
                   transition={{
                     duration: 4,
                     repeat: Infinity,
-                    delay: index * 1
+                    delay: index * 1,
                   }}
                 >
                   {feature.accentIcon}
                 </motion.div>
 
-                {/* Elegant highlight effect on hover with increased visibility */}
+                {/* Subtle highlight on hover */}
                 {hoveredFeature === index && (
                   <motion.div
-                    className={`absolute inset-0 border-2 border-${feature.color}-400 rounded-2xl pointer-events-none`}
+                    className={`absolute inset-0 border-2 rounded-2xl pointer-events-none ${feature.color === "blue"
+                        ? "border-blue-400/50"
+                        : feature.color === "violet"
+                          ? "border-violet-400/50"
+                          : feature.color === "indigo"
+                            ? "border-indigo-400/50"
+                            : "border-green-400/50"
+                      }`}
                     layoutId="featureHighlight"
                     transition={{ duration: 0.2 }}
                   />
@@ -492,6 +555,7 @@ export function DashboardPreview() {
               </motion.div>
             ))}
           </div>
+
         </div>
 
         {/* Mobile preview with enhanced effects and brightness */}

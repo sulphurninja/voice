@@ -57,7 +57,7 @@ export function ThemeProvider({
     // Always use dark theme for auth pages
     if (isAuthPage) {
       root.classList.add("dark")
-      root.setAttribute(attribute, "dark")
+      if (attribute !== "class") root.setAttribute(attribute, "dark")
       return
     }
 
@@ -68,12 +68,12 @@ export function ThemeProvider({
         : "light"
 
       root.classList.add(systemTheme)
-      root.setAttribute(attribute, systemTheme)
+      if (attribute !== "class") root.setAttribute(attribute, systemTheme)
       return
     }
 
     root.classList.add(theme)
-    root.setAttribute(attribute, theme)
+    if (attribute !== "class") root.setAttribute(attribute, theme)
   }, [theme, attribute, enableSystem, disableTransitionOnChange, pathname, isAuthPage, themes])
 
   useEffect(() => {

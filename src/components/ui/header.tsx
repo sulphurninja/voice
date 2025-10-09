@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/components/theme-provider";
+import { Integrations } from "@/components/integrations";
 import {
   MenuIcon,
   X,
@@ -49,7 +50,8 @@ const navItems = [
     description: "Complete voice AI platform"
   },
   {
-    href: "#integrations",
+  
+    href: "/Integrations",
     label: "Integrations",
     icon: <Globe className="h-4 w-4" />,
     description: "Connect with your tools"
@@ -86,7 +88,7 @@ export function Header() {
         "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
         scrolled
           ? "bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200/20 dark:border-white/10 shadow-lg shadow-black/5"
-          : "bg-transparent"
+          : "bg-transparent dark:bg-gray-900/20"
       )}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
